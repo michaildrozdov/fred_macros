@@ -1,0 +1,1649 @@
+//Video 4
+clear_variables();
+requiredAmpl = 2;
+requiredRise = 0.05;//mV per point
+scoreThreshold = 4;
+requiredMaximumMult = 0.25;
+fullPrint = true;
+showBreathAngle = false;
+
+totalBreathingDetected = 0;
+
+freq0 = 3.1; //Starting frequency, GHz
+freqMax = 3.6;
+d = 0.061;//m, distance between two receivers
+B = freqMax - freq0;//Bandwidth
+Tc = 11; //Chirp period, ms
+K=1;                   //Number of chirps in train (columns in mt matrix)
+M=1024;             //Number of points in chirp (rows in mt matrix)
+N = K*M;            //Number of points in train 
+T=10; //ms
+Mn=12;               //Padding window power 
+Nn=pow(2,Mn);   //Padding window number
+dT =T/M;            //Time step
+Tn=dT*Nn;         //Padding window duration, ms 
+frameDuration = 200;//pause between displayed frames, ms
+numOfTrans = 1; //number of transmitting antennas
+
+c = 0.3;//m/ns
+slope = 0.5/(T/1000);//0.5 GHz/10 ms
+deltaf = 1/(T/1000);//original IF delta
+
+perFrame = 16;
+perBreathFrame = 64;
+breathingPeriod = 128;//of slow samples
+dopplerPadding = 128;
+padAngleTo = 32;
+breathSkips = 8; //how many chirps are acquired before next brething sample
+
+distPerPoint = deltaf*c/2/slope*1024/Nn;
+pointsToView = ceil(20/distPerPoint);
+totalDistance = distPerPoint*(M/2+1);
+breathingDeltaT = breathSkips*T/1000;//seconds per sample
+breathingWindow = breathingPeriod*breathingDeltaT;//seconds
+breathingDeltaF = 1/breathingWindow;//Hz
+
+out(deltaf);
+out(distPerPoint);
+out(pointsToView);
+
+paddingRate = Nn/M;
+out(paddingRate);
+out(breathingWindow);
+
+lambda0 = c/freq0;
+domega = 2*pi()/dopplerPadding;
+dvel = lambda0*domega/4/pi()/Tc*1000;
+
+
+dphase = 2*pi()/padAngleTo;
+
+out(dvel);
+
+
+//Main drawing axes
+verticalDrawScale = signal((pointsToView-1)*distPerPoint, pointsToView, false);
+horizontalDrawScale = signal(dvel*dopplerPadding, dopplerPadding, false);
+anglesDrawScale = signal(1, padAngleTo, false);
+for (ia = 0; ia < pointsToView; ia = ia + 1)
+{
+	  verticalDrawScale[ia] = ia*distPerPoint;
+}
+for (ia = 0; ia < dopplerPadding; ia = ia + 1)
+{
+	  horizontalDrawScale[ia] = (ia - dopplerPadding/2+1)*dvel;
+}
+
+for (ia = 0; ia < padAngleTo; ia = ia + 1)
+{
+	  anglesDrawScale[ia] = 180*asin((ia - padAngleTo/2+1)*dphase*lambda0/2/pi()/d)/pi();
+}
+lastInd = padAngleTo-1;
+rangeOfAngles = anglesDrawScale[lastInd] - anglesDrawScale[0];
+
+set_label(verticalDrawScale, (pointsToView-1)*distPerPoint, "m", "m");
+set_label(horizontalDrawScale, dvel*dopplerPadding, "m/s", "m/s");
+set_label(anglesDrawScale, rangeOfAngles, "deg", "deg");
+r12 = anglesDrawScale;
+r13 = verticalDrawScale;
+r14 = horizontalDrawScale;
+//end of main drawing axes
+
+//Breathing drawing axes
+verticalBreathingScale = signal(breathingWindow, breathingPeriod, false);
+horizontalBreathingScale = signal((pointsToView-1)*distPerPoint, pointsToView, false);
+for (ia = 0; ia < pointsToView; ia = ia + 1)
+{
+	  horizontalBreathingScale[ia] = ia*distPerPoint;
+}
+for (ia = 0; ia < breathingPeriod; ia = ia + 1)
+{
+	  verticalBreathingScale[ia] = ia*breathingDeltaT;
+}
+set_label(verticalBreathingScale, breathingWindow, "s", "s");
+set_label(horizontalDrawScale, (pointsToView-1)*distPerPoint, "m", "m");
+r15 = verticalBreathingScale;
+r16 = horizontalBreathingScale;
+//end of breathing drawing axes
+                                  
+ch_1 = signal(T,N,false);
+ch_2 = signal(T,N,false);
+ch_3 = signal(T,N,false);
+ch_4 = signal(T,N,false);
+ch_5 = signal(T,N,false);
+ch_6 = signal(T,N,false);
+ch_7 = signal(T,N,false);
+ch_8 = signal(T,N,false);
+
+chMat = matrix(8*numOfTrans, N); // matrix to hold normalized signals
+prevChMat = matrix(8*numOfTrans, N); // matrix to hold normalized prev signals for the MTI
+prevChMat = 0;
+
+pathW="C:\multitarget_data\FRED\Kaizer.sig";
+W=sig_read(pathW,0);  
+Nor=2^12;
+                                                                     
+SigZP_1=signal(Tn,Nn,false); 
+SigZP_1s=SigZP_1;
+SigZP_2=SigZP_1;
+SigZP_3=SigZP_1;
+SigZP_4=SigZP_1;
+SigZP_5=SigZP_1;
+SigZP_6=SigZP_1;
+SigZP_7=SigZP_1;
+SigZP_8=SigZP_1;
+
+SigZP_2s=SigZP_1;
+SigZP_3s=SigZP_1;
+SigZP_4s=SigZP_1;
+SigZP_5s=SigZP_1;
+SigZP_6s=SigZP_1;
+SigZP_7s=SigZP_1;
+SigZP_8s=SigZP_1;
+
+SigDif = signal(Tn,Nn,false);
+//Zerro padded signal
+So=signal(Tn,Nn/2-1,true);   
+//
+z = 0;
+a1=signal(T,M,false);                                                       
+a1=0; 
+aa1=a1;
+pos=0;
+
+path_t="C:\multitarget_data\Indoor\test_66.sig";
+//path_t="C:\multitarget_data\Indoor\test_39.sig";  
+                                                                       num=sig_get_count(path_t);
+
+firstMaxDist = signal(1, ceil(num/perFrame), false);
+firstMaxAngle = signal(1, ceil(num/perFrame), false);
+firstMaxVel = signal(1, ceil(num/perFrame), false);
+
+firstMaxDist = 0;
+firstMaxAngle = 0;
+firstMaxVel = 0;
+
+firstMaxDistBreath = signal(1, ceil(num/perFrame), false);
+firstMaxAngleBreath = signal(1, ceil(num/perFrame), false);
+
+firstMaxDistBreath = 0;
+firstMaxAngleBreath = 0;
+                                                                     
+ss1=matrix(num,N*8*numOfTrans);
+N1=0;
+N2=num;
+
+                                                       
+ avgVel = 0;
+ avgRate = 0;
+For(ii=0;ii<num;ii=ii+1)
+{
+	  s1 = sig_read(path_t,ii);
+	  set_matrix_row(ss1,ii,s1);
+}
+
+out(Nmat);
+Pause();
+
+//l1:
+
+prevMax  = 0;
+prevPhase = 0;
+
+//For now these will be separate matrices
+//but could be joined to one structure
+dopplerMatrixRe1 = matrix(perFrame, pointsToView);
+dopplerMatrixRe1 = 0;
+dopplerMatrixIm1 = matrix(perFrame, pointsToView);
+dopplerMatrixIm1= 0;
+
+dopplerMatrixRe2= matrix(perFrame, pointsToView);
+dopplerMatrixRe2 = 0;
+dopplerMatrixIm2 = matrix(perFrame, pointsToView);
+dopplerMatrixIm2 = 0;
+
+dopplerMatrixRe3 = matrix(perFrame, pointsToView);
+dopplerMatrixRe3 = 0;
+dopplerMatrixIm3 = matrix(perFrame, pointsToView);
+dopplerMatrixIm3 = 0;
+
+dopplerMatrixRe4 = matrix(perFrame, pointsToView);
+dopplerMatrixRe4 = 0;
+dopplerMatrixIm4 = matrix(perFrame, pointsToView);
+dopplerMatrixIm4 = 0;
+
+dopplerMatrixRe5 = matrix(perFrame, pointsToView);
+dopplerMatrixRe5 = 0;
+dopplerMatrixIm5 = matrix(perFrame, pointsToView);
+dopplerMatrixIm5 = 0;
+
+dopplerBreathMatrixRe1 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe1 = 0;
+dopplerBreathMatrixIm1 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm1 = 0;
+
+dopplerBreathMatrixRe2 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe2 = 0;
+dopplerBreathMatrixIm2 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm2 = 0;
+
+dopplerBreathMatrixRe3 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe3 = 0;
+dopplerBreathMatrixIm3 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm3 = 0;
+
+dopplerBreathMatrixRe4 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe4 = 0;
+dopplerBreathMatrixIm4 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm4 = 0;
+
+dopplerBreathMatrixRe5 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe5 = 0;
+dopplerBreathMatrixIm5 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm5 = 0;
+
+
+
+dopplerMatrixRe12 = matrix(perFrame, pointsToView);
+dopplerMatrixRe12 = 0;
+dopplerMatrixIm12 = matrix(perFrame, pointsToView);
+dopplerMatrixIm12= 0;
+
+dopplerMatrixRe22= matrix(perFrame, pointsToView);
+dopplerMatrixRe22 = 0;
+dopplerMatrixIm22 = matrix(perFrame, pointsToView);
+dopplerMatrixIm22 = 0;
+
+dopplerMatrixRe32 = matrix(perFrame, pointsToView);
+dopplerMatrixRe32 = 0;
+dopplerMatrixIm32 = matrix(perFrame, pointsToView);
+dopplerMatrixIm32 = 0;
+
+dopplerMatrixRe42 = matrix(perFrame, pointsToView);
+dopplerMatrixRe42 = 0;
+dopplerMatrixIm42 = matrix(perFrame, pointsToView);
+dopplerMatrixIm42 = 0;
+
+dopplerMatrixRe52 = matrix(perFrame, pointsToView);
+dopplerMatrixRe52 = 0;
+dopplerMatrixIm52 = matrix(perFrame, pointsToView);
+dopplerMatrixIm52 = 0;
+
+dopplerBreathMatrixRe12 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe12 = 0;
+dopplerBreathMatrixIm12 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm12 = 0;
+
+dopplerBreathMatrixRe22 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe22 = 0;
+dopplerBreathMatrixIm22 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm22 = 0;
+
+dopplerBreathMatrixRe32 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe32 = 0;
+dopplerBreathMatrixIm32 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm32 = 0;
+
+dopplerBreathMatrixRe42 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe42 = 0;
+dopplerBreathMatrixIm42 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm42 = 0;
+
+dopplerBreathMatrixRe52 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixRe52 = 0;
+dopplerBreathMatrixIm52 = matrix(perBreathFrame, pointsToView);
+dopplerBreathMatrixIm52 = 0;
+
+
+
+resultMat = matrix(pointsToView, dopplerPadding);//transposed
+breathMat = matrix(breathingPeriod, pointsToView);
+breathMat = 0;
+slowBreath = signal(1, breathingPeriod, false);
+longCompl = signal(1,dopplerPadding,true);
+longCompl = 0;
+
+SigZP_1=0;
+SigZP_2=0;
+SigZP_3=0;
+SigZP_4=0;
+SigZP_5=0;
+SigZP_6=0;
+SigZP_7=0;
+SigZP_8=0;
+
+frameIndex = 0;
+breathIndex = 0;
+
+sigToEnterRe = signal(1, pointsToView, false);
+sigToEnterIm = signal(1, pointsToView, false);
+
+breathAmplitudes = signal(1, pointsToView, false);
+
+SigZP_1=0;
+averaged = mag(fft(SigZP_1));
+
+uniqueMaximumsBreath = signal(10, 100, false); // array for storing maximums, which appear on all channels
+uniqueScoresBreath = signal(10, 100, false);
+lastUniqueMaximumBreath = 0;
+
+perTargetReal = matrix(8*numOfTrans,dopplerPadding);//has all channels, used for an angle fft
+perTargetImag = matrix(8*numOfTrans,dopplerPadding);//has all channels, used for an angle fft
+perTargetReal = 0;
+perTargetImag = 0;
+
+perTargetBreathReal = matrix(8*numOfTrans,dopplerPadding);//has all channels, used for an angle fft
+perTargetBreathImag = matrix(8*numOfTrans,dopplerPadding);//has all channels, used for an angle fft
+perTargetBreathReal = 0;
+perTargetBreathImag = 0;
+
+angleFFTMat = matrix(dopplerPadding, padAngleTo);
+angleFFTSig = signal(1,padAngleTo,true);//angle fft is performed here
+angleFFTSig = 0;
+angleFFTMat = 0;//to store angle-doppler results for each distance
+
+angleFFTMatBreath = matrix(dopplerPadding, padAngleTo);
+angleFFTMatBreath = 0;//to store angle-doppler results for each distance
+
+averagedMat = matrix(8*numOfTrans, Nn/2+1);
+averagedMat = 0;
+
+perChannelMaximums = matrix(8*numOfTrans,100);
+perChannelMaximumsBreath = matrix(8*numOfTrans,100);
+frameIndex2 = 0; // not from 0 to perFrame, but always increasing
+
+prevPhaseSig = mag(fft(SigZP_1));
+currentDeviations = prevPhaseSig;
+
+//We need to keep previous phases to calculate,how stable is the change of phase for each distance
+prevPhaseSigsPerChannel = matrix(8*numOfTrans, count(prevPhaseSig));
+for (chNum = 0; chNum < 8*numOfTrans; chNum = chNum + 1)
+{
+	  set_matrix_row(prevPhaseSigsPerChannel, chNum, prevPhaseSig);
+}
+//Deviations of the phase change will be kept here
+//This is the main criteria to distinguish potential breathing points
+deviationsPerChannel = matrix(8*numOfTrans, count(prevPhaseSig));
+deviationsPerChannel = 0;
+
+breathAmplitudes = signal(1, pointsToView, false);
+
+learningRate = 0.05;//How fast the mean phase change and the deviation of the phase change will be updated by new measurements
+
+spectrumMaximums = signal(1, pointsToView, false);
+
+//The code below is not used, but copied from the RGA implementation for the reference
+//We don't use the mask here, so the implementation is simpler
+//currentDeviations = learningRate*(1-mask)*currentFrame*currentFrame + (1 - learningRate*(1-mask))*currentDeviations*currentDeviations;//update of std
+//meanValues = learningRate*(1-mask)*currentSignal + (1 -  learningRate*(1-mask))*meanValues;//mean update, only where mask nonzero
+
+maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12 
+
+For(ii=N1;ii<N2;ii=ii+1)
+{
+	  prevTargetAngle = 0;
+	  prevTargetVel = 0;
+	  print_line("At time ", ii*Tc/1000, " seconds:");
+	  uniqueMaximumsBreath = 0;
+	  uniqueScoresBreath = 0;
+	  perChannelMaximums = 0;
+	  lastUniqueMaximum = 0;
+	  perChannelMaximumsBreath = 0;
+	  lastUniqueMaximumBreath = 0;
+	  
+	  s1 = get_matrix_row(ss1,ii);
+	  for (trans = 0; trans < numOfTrans; trans = trans + 1)
+	  {
+		    for(i=0;i<N;i=i+1)
+		    {
+			      ch_1[i] = s1[i * 8 + N*trans];
+			      ch_2[i] = s1[i * 8 + 1 + N*trans];
+			      ch_3[i] = s1[i * 8 + 2 + N*trans];
+			      ch_4[i] = s1[i * 8 + 3 + N*trans];
+			      ch_5[i] = s1[i * 8 + 4 + N*trans];
+			      ch_6[i] = s1[i * 8 + 5 + N*trans];
+			      ch_7[i] = s1[i * 8 + 6 + N*trans];
+			      ch_8[i] = s1[i * 8 + 7 + N*trans];
+		    }
+		    
+		    set_matrix_row(chMat, 0 + trans*8, ch_1/Nor);
+		    set_matrix_row(chMat, 1 + trans*8, ch_2/Nor);
+		    set_matrix_row(chMat, 2 + trans*8, ch_3/Nor);
+		    set_matrix_row(chMat, 3 + trans*8, ch_4/Nor);
+		    set_matrix_row(chMat, 4 + trans*8, ch_5/Nor);
+		    set_matrix_row(chMat, 5 + trans*8, ch_6/Nor);
+		    set_matrix_row(chMat, 6 + trans*8, ch_7/Nor);
+		    set_matrix_row(chMat, 7 + trans*8, ch_8/Nor);
+	  }
+	  
+	  hitMaximums=signal(Tn,pointsToView,false);
+	  hitMaximums =0;
+	  
+	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+	  {
+		    c1 = get_matrix_row(chMat, chNum);
+		    set_label(c1, T, "ms", "mV");
+		    aa1 = get_matrix_row(prevChMat, chNum);
+		    set_label(aa1, T, "ms", "mV");
+		    
+		    cc1 = aa1 - c1;
+		    //aa1=c1;
+		    
+		    set_matrix_row(prevChMat, chNum, c1);
+		    set_matrix_row(chMat, chNum, cc1);
+		    
+		    if (chNum > 7) // next transmitting antenna
+		    {
+			      goto nextcycle;
+		    }
+
+		    SigZP_1=0;
+
+		    Insert(cc1*W,0,M-1,SigZP_1,0);
+		    spectr_1=fft(sigZP_1)/T;
+
+		    
+		    //r11=mag(spectr_1);
+		    currentRangeSig = mag(spectr_1);
+		    
+		    currentPhaseSig = phase(spectr_1);
+		    currentPhaseDiff = currentPhaseSig - get_matrix_row(prevPhaseSigsPerChannel, chNum);
+		    
+		    validDeviations = signal(1, pointsToView, false);
+		    insert(get_matrix_row(deviationsPerChannel, chNum), 0, pointsToView-1, validDeviations, 0);
+		    meanStd = mean(validDeviations);
+		    
+		    prevMax = 0;
+			      
+		    totalFoundBreath = 0;
+		    maximumsBreath = signal(1,100,false);
+		    maximumsBreath = 0;
+		    
+		    if (meanStd > 4)
+		    {
+			      for (phasePt = 1; phasePt < pointsToView; phasePt = phasePt + 1)
+			      {
+					prevIndex = phasePt - 1;
+					nextIndex = phasePt + 1;
+					if (abs(currentPhaseDiff[prevIndex] - currentPhaseDiff[phasePt]) > pi())
+					{
+						 if (abs(currentPhaseDiff[nextIndex] - currentPhaseDiff[phasePt]) > pi())
+						  {
+							    currentPhaseDiff[phasePt] = (currentPhaseDiff[prevIndex] + currentPhaseDiff[nextIndex])/2;
+						  } 
+					}
+			      }
+			      for (phasePt = 1; phasePt < pointsToView; phasePt = phasePt + 1)
+			      {
+					prevIndex = phasePt - 1;
+					nextIndex = phasePt + 1;
+
+					if (currentDeviations[phasePt] < 0.5*meanStd)
+					{
+						  maximumsBreath[totalFoundBreath] = phasePt;
+						  //print_line("New breath point found ", currentDeviations[phasePt], " at ", phasePt);
+						  totalFoundBreath = totalFoundBreath + 1;
+					}
+	
+					
+					if (currentDeviations[phasePt] > currentDeviations[nextIndex])
+					{
+						  if (currentDeviations[phasePt] > currentDeviations[prevIndex])
+						  {
+							    prevMax = phasePt;
+						  }
+					}
+			      }
+		    }
+		    
+		    if (chNum == 0)
+		    {
+			      r9 = currentPhaseDiff;
+			      r8 = currentDeviations;
+		    }
+		    
+		    currentDeviations = learningRate*currentPhaseDiff*currentPhaseDiff + (1 - learningRate)*currentDeviations;//update of std
+		    prevPhaseSig = currentPhaseSig;
+
+		    set_matrix_row(prevPhaseSigsPerChannel, chNum, prevPhaseSig);
+		    set_matrix_row(deviationsPerChannel, chNum, currentDeviations);
+		    
+		    //print_line("On frame ", ii, " ", totalFoundBreath, " breath points found for channel ", chNum);
+		    
+		    for (mNum = 0; mNum < totalFoundBreath; mNum = mNum + 1)
+		    {
+			      //print_line("Maximum ", mNum, " is at ", maximumsBreath[mNum]);
+			      alreadyFound = false;
+			      for (mNumGlobalBreath = 0; mNumGlobalBreath < 100; mNumGlobalBreath = mNumGlobalBreath + 1)
+			      {
+					if (uniqueMaximumsBreath[mNumGlobalBreath] == 0)
+					{
+						  goto earlyoneone;
+					}
+					if (uniqueMaximumsBreath[mNumGlobalBreath] == maximumsBreath[mNum])
+					{
+						  alreadyFound = true;
+						  goto earlyoneone;
+					}
+			      }
+			      earlyoneone:
+			      
+			      if (not(alreadyFound))
+			      {
+					//print_line(maximumsBreath[mNum], " is unique");
+					if (lastUniqueMaximumBreath < 100)
+					{
+						  uniqueMaximumsBreath[lastUniqueMaximumBreath] = maximumsBreath[mNum];
+						  lastUniqueMaximumBreath = lastUniqueMaximumBreath + 1;
+					}
+			      }
+		    }
+		    //print_line(" ");
+		    set_matrix_row(perChannelMaximumsBreath, chNum, maximumsBreath);
+		    
+		    //averaged = 0.9*averaged + 0.1*currentRangeSig;
+		    averaged = 0.9*get_matrix_row(averagedMat, chNum) + 0.1*currentRangeSig;// not rewriting averagedMat
+		    //r10 = averaged;
+		     if (chNum == 0)
+		    {
+			      r11 = currentRangeSig;
+			      r10 = averaged;
+		    }
+		    
+		    totalFound = 0;
+		    
+		    pos = 0;
+		    absoluteMaximum = max(averaged, pos);
+
+		    targetSignal = averaged;
+
+		    prevMin = 0;
+
+		    for (ia = 1; ia < pointsToView; ia = ia + 1)
+		    {
+			      nextIndex = ia + 1;
+			      prevIndex = ia - 1;
+			      if (targetSignal[ia] > targetSignal[nextIndex])
+			      {
+					if (targetSignal[ia] > targetSignal[prevIndex])
+					{
+						  if (targetSignal[ia] - targetSignal[prevMin] > requiredAmpl)
+						  {
+							     if ((targetSignal[ia] - targetSignal[prevMin])/(ia - prevMin) > requiredRise)
+							    {
+								      if (targetSignal[ia] > absoluteMaximum*requiredMaximumMult)
+								      {
+										hitMaximums[ia] =hitMaximums[ia]+1;
+								      }
+							    }
+						  }
+					}
+			      }
+			      
+			      if (targetSignal[ia] < targetSignal[nextIndex])
+			      {
+					if (targetSignal[ia] < targetSignal[prevIndex])
+					{
+						  prevMin = ia;
+					}
+			      }
+		    }
+		    
+		    nextcycle:
+	  }
+	  
+	  maximums = signal(1,100,false);
+	  maximums = 0;
+	  totalFound = 0; //clear selected maximums
+	  
+	  for (ia = maximumsDelay; ia < pointsToView - 2; ia = ia + 1)
+	  {  
+		    if (hitMaximums[ia] >= 2)
+		    {
+			      prevIndex = ia - 1;
+			      prevPrevIndex = ia - 2;
+			      nextIndex = ia + 1;
+			      nextNextInde = ia + 2;
+			      currentScore=(hitMaximums[prevPrevIndex] + hitMaximums[nextNextIndex])/4
+						  + (hitMaximums[prevIndex] + hitMaximums[nextIndex])/2
+						  + hitMaximums[ia];
+						  
+			      if ((currentScore >= scoreThreshold) and (totalFound - 1 < 100))
+			      {
+					maximums[totalFound] = ia;
+					totalFound = totalFound + 1;
+			      }
+		    }
+	  }
+
+	  print_line("Number of selected maximums ", totalFound);
+	  if (totalFound == 0) //nothing to set, use previous
+	  {
+		    if (frameIndex == perFrame)
+		    {
+			      if (frameIndex2 > 0)
+			      {
+					prefFrameIndex2 = frameIndex2 - 1;
+					firstMaxDist[frameIndex2] = firstMaxDist[prefFrameIndex2];
+					firstMaxAngle[frameIndex2] = firstMaxAngle[prefFrameIndex2];
+					firstMaxVel[frameIndex2] = firstMaxVel[prefFrameIndex2];
+			      }
+		    }
+	  }
+	  
+	  totalFoundBreath = 0;
+	  
+	  for (mNumGlobalBreath = 0; mNumGlobalBreath < lastUniqueMaximumBreath; mNumGlobalBreath = mNumGlobalBreath + 1)
+	  {
+		    for (chNum = 0; chNum < 8; chNum = chNum + 1)
+		    {
+			      localMaximums = get_matrix_row(perChannelMaximumsBreath, chNum);
+			      for (mNumLocal = 0; mNumLocal < 100; mNumLocal = mNumLocal + 1)
+			      {
+					if (localMaximums[mNumLocal] < 1) // 0
+					{
+						  goto earlytwotwo;
+					}
+					else
+					{
+						  if (uniqueMaximumsBreath[mNumGlobalBreath] == localMaximums[mNumLocal])
+						  {
+							    uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 1;
+						  }
+						  else
+						  {
+							    if (abs(uniqueMaximumsBreath[mNumGlobalBreath] - localMaximums[mNumLocal]) < 2)
+							    {
+								      uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 0.5;
+							    }
+							    else
+							    {
+								      if (abs(uniqueMaximumsBreath[mNumGlobalBreath] - localMaximums[mNumLocal]) < 3)
+								      {
+										uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 0.25;
+								      }
+							    }
+						  }
+					}
+
+			      }
+			      earlytwotwo:
+		    }
+		    maximumVal = uniqueMaximumsBreath[mNumGlobalBreath];
+		    currentScore = uniqueScoresBreath[mNumGlobalBreath];
+		    
+		    if (currentScore >= 2)
+		    {
+			      maximumsBreath[totalFoundBreath] = maximumVal;
+			      totalFoundBreath = totalFoundBreath + 1;
+		    }
+		    
+		    //print_line("Maximum number ", mNumGlobal, " is ", maximumVal, ". It has score ", currentScore);
+	  }
+	  
+	  print_line("Number of selected candidate points for the breath detection ", totalFoundBreath);
+	  
+	  if (totalFoundBreath == 0) //nothing to set, use previous
+	  {
+		    if (frameIndex == perFrame)
+		    {
+			      if (frameIndex2 > 0)
+			      {
+					prefFrameIndex2 = frameIndex2 - 1;
+					firstMaxDistBreath[frameIndex2] = firstMaxDistBreath[prefFrameIndex2];
+					firstMaxAngleBreath[frameIndex2] = firstMaxAngleBreath[prefFrameIndex2];
+			      }
+		    }
+	  }
+	
+	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+	  {
+		    cc1 = get_matrix_row(chMat, chNum);
+			    
+		    SigZP_1=0;
+
+		    Insert(cc1*W,0,M-1,SigZP_1,0);
+		    spectr_1=fft(sigZP_1)/T;
+
+		    
+		    //r11=mag(spectr_1);
+		    currentRangeSig = mag(spectr_1);
+		    averaged = 0.9*get_matrix_row(averagedMat, chNum) + 0.1*currentRangeSig;
+		    
+		    //here we can rewrite averagedMat already
+		    set_matrix_row(averagedMat, chNum, averaged);
+		    
+		    //r10 = averaged;
+	  
+		    resultMat = 0;
+		    
+		    spReal = real(spectr_1);
+		    spImag = imag(spectr_1);
+		    
+		    insert(spReal, 0, pointsToView-1, sigToEnterRe, 0);
+		    insert(spImag, 0, pointsToView-1, sigToEnterIm, 0);
+
+		    if (chNum == 0)
+		    {
+			      set_matrix_row(dopplerMatrixRe1, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm1, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 1)
+		    {
+			      set_matrix_row(dopplerMatrixRe2, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm2, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 2)
+		    {
+			      set_matrix_row(dopplerMatrixRe3, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm3, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 3)
+		    {
+			      set_matrix_row(dopplerMatrixRe4, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm4, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 4)
+		    {
+			      set_matrix_row(dopplerMatrixRe5, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm5, frameIndex, sigToEnterIm);
+		    }
+		    
+		    //2nd transmitter
+		    if (chNum == 8)
+		    {
+			      set_matrix_row(dopplerMatrixRe12, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm12, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 9)
+		    {
+			      set_matrix_row(dopplerMatrixRe22, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm22, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 10)
+		    {
+			      set_matrix_row(dopplerMatrixRe32, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm32, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 11)
+		    {
+			      set_matrix_row(dopplerMatrixRe42, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm42, frameIndex, sigToEnterIm);
+		    }
+		    if (chNum == 12)
+		    {
+			      set_matrix_row(dopplerMatrixRe52, frameIndex, sigToEnterRe);
+			      set_matrix_row(dopplerMatrixIm52, frameIndex, sigToEnterIm);
+		    }
+	  }
+	
+	  for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
+	  {
+		    for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+		    {
+	      	      
+			      //fill per target doppler-channel matrix
+			      if (frameIndex == perFrame)
+			      {
+					//frameIndex = 0;
+					//print_line("");
+					//print_line("");
+					if (chNum == 0)
+					{
+						  transposedRe = transpose(dopplerMatrixRe1);
+						  transposedIm = transpose(dopplerMatrixIm1);
+					}
+					if (chNum == 1)
+					{
+						  transposedRe = transpose(dopplerMatrixRe2);
+						  transposedIm = transpose(dopplerMatrixIm2);
+					}
+					if (chNum == 2)
+					{
+						  transposedRe = transpose(dopplerMatrixRe3);
+						  transposedIm = transpose(dopplerMatrixIm3);
+					}
+					if (chNum == 3)
+					{
+						  transposedRe = transpose(dopplerMatrixRe4);
+						  transposedIm = transpose(dopplerMatrixIm4);
+					}
+					if (chNum == 4)
+					{
+						  transposedRe = transpose(dopplerMatrixRe5);
+						  transposedIm = transpose(dopplerMatrixIm5);
+					}
+					
+					if (chNum == 8)
+					{
+						  transposedRe = transpose(dopplerMatrixRe12);
+						  transposedIm = transpose(dopplerMatrixIm12);
+					}
+					if (chNum == 9)
+					{
+						  transposedRe = transpose(dopplerMatrixRe22);
+						  transposedIm = transpose(dopplerMatrixIm22);
+					}
+					if (chNum == 10)
+					{
+						  transposedRe = transpose(dopplerMatrixRe32);
+						  transposedIm = transpose(dopplerMatrixIm32);
+					}
+					if (chNum == 11)
+					{
+						  transposedRe = transpose(dopplerMatrixRe42);
+						  transposedIm = transpose(dopplerMatrixIm42);
+					}
+					if (chNum == 12)
+					{
+						  transposedRe = transpose(dopplerMatrixRe52);
+						  transposedIm = transpose(dopplerMatrixIm52);
+					}
+					
+					
+					if ((numOfTrans == 1) and (chNum < 5))
+					{
+						  //do the FFT and show matrix
+						  indInSignal = maximums[rInd];
+						  shortCompl = get_matrix_row(transposedRe, indInSignal) + j*get_matrix_row(transposedIm, indInSignal);
+						  insert(shortCompl, 0, perFrame-1, longCompl, 0);
+						  
+						  dopplerResultComplex = fft(longCompl);
+						  
+						  dopplerCopy = dopplerResultComplex;
+						  insert(dopplerCopy, 0, dopplerPadding/2, dopplerResultComplex, dopplerPadding/2-1);
+						  insert(dopplerCopy, dopplerPadding/2 + 1, dopplerPadding-1, dopplerResultComplex, 0);
+						  
+						  //To calculate angles
+
+						  set_matrix_row(perTargetReal, chNum, real(dopplerResultComplex));
+						  set_matrix_row(perTargetImag, chNum, imag(dopplerResultComplex));
+
+					}
+					else //using more transmitting antennas 
+					{
+						  //do the FFT and show matrix
+						  indInSignal = maximums[rInd];
+						  shortCompl = get_matrix_row(transposedRe, indInSignal) + j*get_matrix_row(transposedIm, indInSignal);
+						  insert(shortCompl, 0, perFrame-1, longCompl, 0);
+						  
+						  dopplerResultComplex = fft(longCompl);
+						  
+						  dopplerCopy = dopplerResultComplex;
+						  insert(dopplerCopy, 0, dopplerPadding/2, dopplerResultComplex, dopplerPadding/2-1);
+						  insert(dopplerCopy, dopplerPadding/2 + 1, dopplerPadding-1, dopplerResultComplex, 0);
+						  if ((chNum > 7) and (chNum < 13))//second transmitter
+						  {
+							    //To calculate angles
+							    //results are stored from 0 index because 2nd transmitter is the closest
+							    set_matrix_row(perTargetReal, chNum-8, real(dopplerResultComplex));
+							    set_matrix_row(perTargetImag, chNum-8, imag(dopplerResultComplex));
+						  }
+						  else
+						  {
+							    if (chNum < 5)
+							    {
+								      //To calculate angles
+								      //results are stored from 5 index because 1st transmitter is the second closest
+								      //we fill only for the azimuth
+								      set_matrix_row(perTargetReal, chNum + 5, real(dopplerResultComplex));
+								      set_matrix_row(perTargetImag, chNum + 5, imag(dopplerResultComplex));
+							    }
+						  }
+					}
+
+			      } 
+		    }
+		    
+		    //have perTargetReal and perTargetImag completed
+		    //now can transpose and fft to get maximum direction
+		    
+		    perTargetTransposedRe = transpose(perTargetReal);
+		    perTargetTransposedIm = transpose(perTargetImag);
+		  
+		    maximumValueGlobal = 0;
+		    maximumVelIndex = 0;
+		    maximumAngleIndex = 0;
+		    for (velInd = 0; velInd < dopplerPadding; velInd = velInd+1)
+		    {
+			      shortAngleSig = get_matrix_row(perTargetTransposedRe, velInd) + j*get_matrix_row(perTargetTransposedIm, velInd);
+			      if (numOfTrans == 1)
+			      {
+					insert(shortAngleSig, 0, 4, angleFFTSig, 0); //5 channels data goes to first 5 points (azimuth)
+			      }
+			      else
+			      {
+					insert(shortAngleSig, 0, 9, angleFFTSig, 0); //10 channels data goes to first 10 points (azimuth) with two transmitters
+			      }
+			      set_label(shortAngleSig, 10, "a", "b");
+			      //r13 = mag(shortAngleSig);
+			      anglesSig = mag(fft(angleFFTSig));
+			      if (velInd == 0)
+			      {
+					//r8 = mag(angleFFTSig);
+					//r9 = anglesSig;
+			      }
+			      anglesSigCopy = anglesSig;
+			      insert(anglesSig, 0, padAngleTo/2, anglesSigCopy, padAngleTo/2-1);
+			      insert(anglesSig, padAngleTo/2 + 1, padAngleTo-1, anglesSigCopy, 0);
+			      
+			      pos  = 0;
+			      maxVal = max(anglesSigCopy, pos);
+			      if (maxVal > maximumValueGlobal)
+			      {
+					maximumValueGlobal = maxVal;
+					maximumVelIndex = velInd;
+					maximumAngleIndex = pos;
+			      }
+			      set_matrix_row(angleFFTMat, velInd, anglesSigCopy);//angle fft per each velocity
+		    }
+	  
+		    if (rInd == 0)//display
+		    {
+			      //print_line("Maximum value ", maxVal, " at vel ", maximumVelIndex, " at angle ", maximumAngleIndex);
+			      if (not(showBreathAngle))
+			      {
+					draw(angleFFTMat);
+			      }
+			      currentMaxPosition = maximums[rInd];
+			      distance = verticalDrawScale[currentMaxPosition];
+			      velocity = horizontalDrawScale[maximumVelIndex];
+			      angle = anglesDrawScale[maximumAngleIndex];
+			      
+			      curX = distance*sin(angle*pi()/180);
+			      curY = distance*cos(angle*pi()/180);
+			      //print_line("1st object detected at r=", maximums[0], ", v=", maximumVelIndex-dopplerPadding/2+1, ", az= ", maximumAngleIndex - padAngleTo/2+1);
+			      if (fullPrint)
+			      {
+					print_line("1st object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+			      }
+			      firstMaxDist[frameIndex2] = distance;
+			      firstMaxAngle[frameIndex2] = angle;
+			      firstMaxVel[frameIndex2] = velocity;
+			      
+			      prevTargetAngle = angle;
+			      prevTargetVel = velocity;
+		    }
+		    else
+		    {
+			      moreThan3rd = false;
+			      if (rInd == 1)
+			      {
+					numberStr = "2nd";
+			      }
+			      else
+			      {
+					if (rInd == 2)
+					{
+						  numberStr = "3rd";
+					}
+					else
+					{
+						  moreThan3rd = true;
+					}
+			      }
+			      
+			      currentMaxPosition = maximums[rInd];
+			      distance = verticalDrawScale[currentMaxPosition];
+			      velocity = horizontalDrawScale[maximumVelIndex];
+			      angle = anglesDrawScale[maximumAngleIndex];
+			      
+			      if ((velocity != prevTargetVel) or (angle != prevTargetAngle))
+			      {
+					curX = distance*sin(angle*pi()/180);
+					curY = distance*cos(angle*pi()/180);
+					if (fullPrint)
+					{
+						  if (moreThan3rd)
+						  {
+							    print_line(rInd+1, "th object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+						  }
+						  else
+						  {
+							    print_line(numberStr, " object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+						  }
+					}
+					
+					prevTargetAngle = angle;
+					prevTargetVel = velocity;
+			      }
+		    }
+		    
+	  }
+	  
+	  
+	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+	  {
+		    cc1 = get_matrix_row(chMat, chNum);
+		  
+		    SigZP_1=0;
+
+		    Insert(cc1*W,0,M-1,SigZP_1,0); // Original signals (not averaged differences) are used for the breathing
+		    spectr_1=fft(sigZP_1)/T;
+		    
+		    //Will need to keep as complex for the Doppler FFT
+		    spReal = real(spectr_1);
+		    spImag = imag(spectr_1);
+		    
+		    //Save the space and processing and only keep valid distances
+		    insert(spReal, 0, pointsToView-1, sigToEnterRe, 0);
+		    insert(spImag, 0, pointsToView-1, sigToEnterIm, 0);
+
+		    //In the macro there is no way to store the 3D structure, so 5 separate matrices are used for the breathing frame data
+		    if (chNum == 0)
+		    {
+			      //for breathing we slide constantly
+			      //and shift all rows by one, the first one is automatically removed
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe1, bInd-1, get_matrix_row(dopplerBreathMatrixRe1, bInd));
+					set_matrix_row(dopplerBreathMatrixIm1, bInd-1, get_matrix_row(dopplerBreathMatrixIm1, bInd));
+			      }
+			      
+			      //the last row is updated with the latest signal
+			      set_matrix_row(dopplerBreathMatrixRe1, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm1, perBreathFrame-1, sigToEnterIm);
+			      
+			      
+		    }
+		    if (chNum == 1)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe2, bInd-1, get_matrix_row(dopplerBreathMatrixRe2, bInd));
+					set_matrix_row(dopplerBreathMatrixIm2, bInd-1, get_matrix_row(dopplerBreathMatrixIm2, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe2, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm2, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 2)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe3, bInd-1, get_matrix_row(dopplerBreathMatrixRe3, bInd));
+					set_matrix_row(dopplerBreathMatrixIm3, bInd-1, get_matrix_row(dopplerBreathMatrixIm3, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe3, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm3, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 3)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe4, bInd-1, get_matrix_row(dopplerBreathMatrixRe4, bInd));
+					set_matrix_row(dopplerBreathMatrixIm4, bInd-1, get_matrix_row(dopplerBreathMatrixIm4, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe4, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm4, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 4)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe5, bInd-1, get_matrix_row(dopplerBreathMatrixRe5, bInd));
+					set_matrix_row(dopplerBreathMatrixIm5, bInd-1, get_matrix_row(dopplerBreathMatrixIm5, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe5, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm5, perBreathFrame-1, sigToEnterIm);
+		    }
+		    
+		    if (chNum == 8)
+		    {
+			      //for breathing we slide constantly
+			      //and shift all rows by one, the first one is automatically removed
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe12, bInd-1, get_matrix_row(dopplerBreathMatrixRe12, bInd));
+					set_matrix_row(dopplerBreathMatrixIm12, bInd-1, get_matrix_row(dopplerBreathMatrixIm12, bInd));
+			      }
+			      
+			      //the last row is updated with the latest signal
+			      set_matrix_row(dopplerBreathMatrixRe12, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm12, perBreathFrame-1, sigToEnterIm);
+			      
+			      
+		    }
+		    if (chNum == 9)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe22, bInd-1, get_matrix_row(dopplerBreathMatrixRe22, bInd));
+					set_matrix_row(dopplerBreathMatrixIm22, bInd-1, get_matrix_row(dopplerBreathMatrixIm22, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe22, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm22, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 10)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe32, bInd-1, get_matrix_row(dopplerBreathMatrixRe32, bInd));
+					set_matrix_row(dopplerBreathMatrixIm32, bInd-1, get_matrix_row(dopplerBreathMatrixIm32, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe32, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm32, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 11)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe42, bInd-1, get_matrix_row(dopplerBreathMatrixRe42, bInd));
+					set_matrix_row(dopplerBreathMatrixIm42, bInd-1, get_matrix_row(dopplerBreathMatrixIm42, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe42, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm42, perBreathFrame-1, sigToEnterIm);
+		    }
+		    if (chNum == 12)
+		    {
+			      //for breathing we slide constantly
+			      for (bInd = 1; bInd < perBreathFrame; bInd = bInd + 1)
+			      {
+					set_matrix_row(dopplerBreathMatrixRe52, bInd-1, get_matrix_row(dopplerBreathMatrixRe52, bInd));
+					set_matrix_row(dopplerBreathMatrixIm52, bInd-1, get_matrix_row(dopplerBreathMatrixIm52, bInd));
+			      }
+			      set_matrix_row(dopplerBreathMatrixRe52, perBreathFrame-1, sigToEnterRe);
+			      set_matrix_row(dopplerBreathMatrixIm52, perBreathFrame-1, sigToEnterIm);
+		    }
+	  }
+	  
+	  breathIndex = breathIndex + 1;
+	  
+	  if (breathIndex >= breathSkips) //we update the slow time samples with some step to fit several breaths in the period of FFT
+	  {
+		    breathAmplitudes = 0; //it is the signal, where for each distance point, current amplitude of the 1st Doppler frequency is stored
+		    numberOfBreathing = 0; //will contain total number of detected brathing distances
+		    
+		    for (chNum = 0; chNum < 5; chNum = chNum + 1) // only run through azimuth channels for now
+		    {
+			      //depending on channel we select proper source of non transposed data
+			      //but transpose is the same since it is used here in the loop
+			      if (chNum == 0)
+			      {
+					transposedBreathRe = transpose(dopplerBreathMatrixRe1);
+					transposedBreathIm = transpose(dopplerBreathMatrixIm1);
+			      }
+			      if (chNum == 1)
+			      {
+					transposedBreathRe = transpose(dopplerBreathMatrixRe2);
+					transposedBreathIm = transpose(dopplerBreathMatrixIm2);
+			      }
+			      if (chNum == 2)
+			      {
+					transposedBreathRe = transpose(dopplerBreathMatrixRe3);
+					transposedBreathIm = transpose(dopplerBreathMatrixIm3);
+			      }
+			      if (chNum == 3)
+			      {
+					transposedBreathRe = transpose(dopplerBreathMatrixRe4);
+					transposedBreathIm = transpose(dopplerBreathMatrixIm4);
+			      }
+			      if (chNum == 4)
+			      {
+					transposedBreathRe = transpose(dopplerBreathMatrixRe5);
+					transposedBreathIm = transpose(dopplerBreathMatrixIm5);
+			      }
+			      
+		    
+			      //for all distances we...
+			      for (rInd = 0; rInd < pointsToView; rInd = rInd + 1)
+			      {
+					//make a complex signal from the components
+					shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+					
+					//do the zero padding
+					insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
+					
+					//the complex FFT (the Doppler dimension)
+					dopplerResult = mag(fft(longCompl));
+					
+					//there is a bug in macro, can't use expressions in [], so creating explicit variable for the last index
+					last = dopplerPadding - 1;
+					
+					//The amplitude is calculated as the difference, estimating just a single 1st frequency should also work
+					//We add to the result instead of rewriting since we are accumulating amplitudes from 5 channels
+					//Single channels can be probably used with the same precision
+					breathAmplitudes[rInd] = breathAmplitudes[rInd] + dopplerResult[1] - dopplerResult[last];
+			      }
+		    }
+		    
+		    //Shifting previous breathing amplitude by one in slow time dimension
+		    for (bInd = breathingPeriod - 1; bInd > 0; bInd = bInd - 1)
+		    {
+			      set_matrix_row(breathMat, bInd, get_matrix_row(breathMat, bInd-1));
+		    }
+		    //Rewriting 1st row with the latest data
+		    set_matrix_row(breathMat, 0, breathAmplitudes);
+
+		    //Transpose to calculate FFT along the slow time axis for each distance
+		    breathMatTransposed = transpose(breathMat);
+		    
+		    //Resetting the signal, in which we will keep spectrum maximums for all potential breathing points
+		    spectrumMaximums = 0;
+
+		    for (rInd = 0; rInd < pointsToView; rInd = rInd + 1)
+		    {
+			      //The amplitude distribution of the breathing on the slow time axis
+			      breathSlowTime = get_matrix_row(breathMatTransposed, rInd);
+			      
+			      //To not have the garbage after the FFT need to set some time window
+			      set_label(breathSlowTime, breathingWindow, "s", "mV");
+			      
+			      //Breathing spectrum, 1000 is arbitrary multiplier to have values in the convenient range
+			      breathSpectrum = 1000*mag(fft(breathSlowTime));
+			      
+			      //The proper labels and the scale
+			      set_label(breathSpectrum, 1/breathingWindow*(breathingPeriod/2+1), "Hz", "mV");
+			      
+			      pos = 0;
+			      currentMaxValue = max(breathSpectrum, pos);
+
+			      //Is current distance among selected potential breathing points, in other words, is its
+			      //phase change small and constant(no large variance)
+			      lowPhaseVariance = false;
+			      for (brInd = 0; brInd < totalFoundBreath; brInd = brInd + 1)
+			      {
+					if (maximumsBreath[brInd] == rInd)
+					{
+						  //Yes, there is a match in one of selected breathing points
+						  lowPhaseVariance = true;
+					}
+			      }
+			      
+			      //This is current policy of describing, what is the breathing spectrum
+			      if ((pos > 0) and (lowPhaseVariance))//not a zero frequency and has low but stable variance of the phase
+			      {
+					sharpDropValue = 1;
+					limit = pos - 2;
+					if (limit < 0)
+					{
+						  limit = 0;
+					}
+					for (dropInd = pos; dropInd >= limit; dropInd = dropInd - 1)
+					{
+						  if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+						  {
+							    sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+						  }
+					}
+					if (sharpDropValue > 0.65)
+					{
+						  limit = pos + 2;
+						  if (limit >= breathingPeriod/2 + 1)
+						  {
+							    limit = breathingPeriod/2;
+						  }
+						  for (dropInd = pos; dropInd <= limit; dropInd = dropInd + 1)
+						  {
+							    if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+							    {
+								      sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+							    }
+						  }
+					}
+					if (sharpDropValue < 0.65)
+					{
+						  //Store this point, it could be local maximum along the distance axis
+						  //We don't know that untill all points around all checked
+						  spectrumMaximums[rInd] = currentMaxValue;
+					}
+
+			      }
+		    }
+		    //Now we can display the current breathing spectrum maximums distribution
+		    r4 = spectrumMaximums;
+		    
+		    numberOfBreathing = 0; // number of local maxima of breathing spectrums amplitudes will be stored here
+		    prevMin = 0;//not used, similar processing as with maximums selection for the raw signal can be implemented
+		    for (rInd = 1; rInd < pointsToView-1; rInd = rInd + 1)
+		    {
+			      //Indices have to be explicit due to the bug in the array access
+			      nextIndex = rInd + 1;
+			      prevIndex = rInd - 1;
+			      breathingDetected = false;
+			      
+			      //Looking for the local maximum, to avoid reporting many breathing points
+			      if (spectrumMaximums[rInd] > spectrumMaximums[nextIndex])
+			      {
+					if (spectrumMaximums[rInd] > spectrumMaximums[prevIndex])
+					{
+						  //It is the local maximum, but is it strong enough?
+						  if (spectrumMaximums[rInd] > 500)
+						  {
+							    isMatchingObject = false;
+							    for (targetRInd = 0; targetRInd < totalFound; targetRInd = targetRInd + 1)
+							    {
+								      objectIndex = maximums[targetRInd];
+								      if (abs(rInd - objectIndex) < 4)
+								      {
+										isMatchingObject = true;
+								      }
+							    }
+							    if (not(isMatchingObject))
+							    {
+								      //Yes, we can add this to the list of breathing objects
+								      //and calculate the angle or current distance
+								      breathingDetected = true;
+								      
+								      //The same processing as before to have the breathing spectrum
+								      breathSlowTime = get_matrix_row(breathMatTransposed, rInd);
+								      set_label(breathSlowTime, breathingWindow, "s", "mV");
+								      breathSpectrum = 1000*mag(fft(breathSlowTime));
+								      set_label(breathSpectrum, 1/breathingWindow*(breathingPeriod/2+1), "Hz", "mV");
+								      
+								      //Have the limited number of register to store first few breathing spectrums
+								      if (numberOfBreathing == 0)
+								      {
+										r1 = breathSpectrum;
+										print_line("Breathing detected at distance point ", rInd, ". Spectrum in r1");
+								      }
+								      if (numberOfBreathing == 1)
+								      {
+										r2 = breathSpectrum;
+										print_line("Breathing detected at distance point ", rInd, ". Spectrum in r2");
+								      }
+								      if (numberOfBreathing == 2)
+								      {
+										r3 = breathSpectrum;
+										print_line("Breathing detected at distance point ", rInd, ". Spectrum in r3");
+								      }
+								      if (numberOfBreathing == 3)
+								      {
+										//r4 = breathSpectrum;
+										//print_line("Breathing detected at distance point ", rInd, ". Spectrum in r4");
+								      }
+								      numberOfBreathing = numberOfBreathing + 1;
+							    }
+						  }
+					}
+			      }
+			      
+			      //Finds the local minimum but otherwise is currently unused
+			      if (spectrumMaximums[rInd] < spectrumMaximums[nextIndex])
+			      {
+					if (spectrumMaximums[rInd] < spectrumMaximums[prevIndex])
+					{
+						  prevMin = rInd;
+					}
+			      }
+			      
+			      //if (spectrumMaximums[rInd] > 0)
+			      //{
+					//breathingDetected = true;
+			      //}
+			      
+			      //If the breathing is detected we can calculate the angle distribution
+			      if (breathingDetected)
+			      {
+					 totalBreathingDetected = totalBreathingDetected + 1;
+					//Only use channels with different azimuth
+					//Same processing as before for the Doppler FFT
+					for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+					{
+						  if (chNum == 0)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe1);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm1);
+						  }
+						  if (chNum == 1)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe2);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm2);
+						  }
+						  if (chNum == 2)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe3);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm3);
+						  }
+						  if (chNum == 3)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe4);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm4);
+						  }
+						  if (chNum == 4)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe5);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm5);
+						  }
+						  
+						  if (chNum == 8)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe12);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm12);
+						  }
+						  if (chNum == 9)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe22);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm22);
+						  }
+						  if (chNum == 10)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe32);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm32);
+						  }
+						  if (chNum == 11)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe42);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm42);
+						  }
+						  if (chNum == 12)
+						  {
+							    transposedBreathRe = transpose(dopplerBreathMatrixRe52);
+							    transposedBreathIm = transpose(dopplerBreathMatrixIm52);
+						  }
+						  
+						  if ((numOfTrans == 1) and (chNum < 5))
+						  {
+							    //The Doppler FFT processsing with zero padding
+							    shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+							    insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
+							    dopplerResultComplex = fft(longCompl);
+							    
+							    //To do the fft shift we need a temporary copy of the result
+							    dopplerComplexCopy = dopplerResultComplex;
+							    
+							    //Fftshift
+							    insert(dopplerComplexCopy, 0, dopplerPadding/2, dopplerResultComplex, dopplerPadding/2-1);
+							    insert(dopplerComplexCopy, dopplerPadding/2 + 1, dopplerPadding-1, dopplerResultComplex, 0);
+							    
+							    //We will need the complex FFT for an angle estimation
+							    //Storing both real and imaginary data after the Doppler FFT
+							    set_matrix_row(perTargetBreathReal, chNum, real(dopplerResultComplex));
+							    set_matrix_row(perTargetBreathImag, chNum, imag(dopplerResultComplex));
+						  }
+						  else
+						  {
+							    if ((chNum > 7) and (chNum < 13))//second transmitter
+							    {
+								      //The Doppler FFT processsing with zero padding
+								      shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+								      insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
+								      dopplerResultComplex = fft(longCompl);
+								      
+								      //To do the fft shift we need a temporary copy of the result
+								      dopplerComplexCopy = dopplerResultComplex;
+								      
+								      //Fftshift
+								      insert(dopplerComplexCopy, 0, dopplerPadding/2, dopplerResultComplex, dopplerPadding/2-1);
+								      insert(dopplerComplexCopy, dopplerPadding/2 + 1, dopplerPadding-1, dopplerResultComplex, 0);
+								      
+								      //We will need the complex FFT for an angle estimation
+								      //Storing both real and imaginary data after the Doppler FFT
+								      set_matrix_row(perTargetBreathReal, chNum-8, real(dopplerResultComplex));
+								      set_matrix_row(perTargetBreathImag, chNum-8, imag(dopplerResultComplex));
+							    }
+							    else
+							    {
+								      if (chNum < 5)
+								      {
+										//The Doppler FFT processsing with zero padding
+										shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+										insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
+										dopplerResultComplex = fft(longCompl);
+										
+										//To do the fft shift we need a temporary copy of the result
+										dopplerComplexCopy = dopplerResultComplex;
+										
+										//Fftshift
+										insert(dopplerComplexCopy, 0, dopplerPadding/2, dopplerResultComplex, dopplerPadding/2-1);
+										insert(dopplerComplexCopy, dopplerPadding/2 + 1, dopplerPadding-1, dopplerResultComplex, 0);
+										
+										//We will need the complex FFT for an angle estimation
+										//Storing both real and imaginary data after the Doppler FFT
+										set_matrix_row(perTargetBreathReal, chNum+5, real(dopplerResultComplex));
+										set_matrix_row(perTargetBreathImag, chNum+5, imag(dopplerResultComplex));
+								      }
+							    }
+						  }
+					}
+					
+					//Transposing to do FFT along the channels axis
+					perTargetTransposedRe = transpose(perTargetBreathReal);
+					perTargetTransposedIm = transpose(perTargetBreathImag);
+					
+					//Currently only one object is expected for the currrent distance
+					//so the global maximum is searched in the velocity versus angle matrix.
+					//Alternatively, several objects could be selected by estimating several local maximas
+					//This is not feasable with the macro language, as it would require many accesses to
+					//matrix elements, which is slow here
+					maximumValueGlobal = 0;
+					maximumVelIndex = 0;
+					maximumAngleIndex = 0;
+					
+					//Avoiding the processing of large velocities as we are looking at breathing velocities
+					for (velInd = dopplerPadding/4+5; velInd < 0.75*dopplerPadding-5; velInd = velInd+1)
+					{
+						  //Create the comple signal for the angle FFT
+						  shortAngleSig = get_matrix_row(perTargetTransposedRe, velInd) + j*get_matrix_row(perTargetTransposedIm, velInd);
+
+						  if (numOfTrans == 1)
+						  {
+							    insert(shortAngleSig, 0, 4, angleFFTSig, 0); //5 channels data goes to first 5 points (azimuth)
+						  }
+						  else
+						  {
+							    insert(shortAngleSig, 0, 9, angleFFTSig, 0); //total 10 points since there are two transmitting for the azimuth
+						  }
+						  set_label(shortAngleSig, 10, "a", "b");
+						  //r13 = mag(shortAngleSig);
+						  anglesSig = mag(fft(angleFFTSig));
+
+						  //As before, fft shift along the azimuth axis
+						  anglesSigCopy = anglesSig;
+						  insert(anglesSig, 0, padAngleTo/2, anglesSigCopy, padAngleTo/2-1);
+						  insert(anglesSig, padAngleTo/2 + 1, padAngleTo-1, anglesSigCopy, 0);
+						  
+						  //looking for the only global maximum
+						  pos  = 0;
+						  maxVal = max(anglesSigCopy, pos);
+						  if (maxVal > maximumValueGlobal)
+						  {
+							    //Update the maximum value and position along both axes
+							    maximumValueGlobal = maxVal;
+							    maximumVelIndex = velInd;
+							    maximumAngleIndex = pos;
+						  }
+						  
+						  //Set one row for the final display of velocity versus angle for a given breathing target
+						  set_matrix_row(angleFFTMatBreath, velInd, anglesSigCopy);//angle fft per each velocity
+					}
+					//The output formating and some register outputs are different for the 1st breathing target
+					//and all other targets
+					if (numberOfBreathing == 1)//first breathing
+					{
+						  //actual coordinates are calculated from indices
+						  currentMaxPosition = rInd;
+						  distance = verticalDrawScale[currentMaxPosition];
+						  angle = anglesDrawScale[maximumAngleIndex];
+						  
+						  curX = distance*sin(angle*pi()/180);
+						  curY = distance*cos(angle*pi()/180);
+						  
+						  if (fullPrint)
+						  {
+							    print_line("1st breathing detected at r=", distance, ", az= ", angle, " or x=", curX, ", y=", curY);
+						  }
+						  firstMaxDistBreath[frameIndex2] = distance;
+						  firstMaxAngleBreath[frameIndex2] = angle;
+					}
+					else
+					{
+						  moreThan3rd = false;
+						  if (numberOfBreathing == 2)
+						  {
+							    numberStr = "2nd";
+						  }
+						  else
+						  {
+							    if (numberOfBreathing == 3)
+							    {
+								      numberStr = "3rd";
+							    }
+							    else
+							    {
+								      moreThan3rd = true;
+							    }
+						  }
+						  
+						  currentMaxPosition = rInd;
+						  distance = verticalDrawScale[currentMaxPosition];
+						  angle = anglesDrawScale[maximumAngleIndex];
+						  
+						  curX = distance*sin(angle*pi()/180);
+						  curY = distance*cos(angle*pi()/180);
+						  if (fullPrint)
+						  {
+							    if (moreThan3rd)
+							    {
+								      print_line(numberOfBreathing, "th breathing detected at r=", distance, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    }
+							    else
+							    {
+								      print_line(numberStr, " breathing detected at r=", distance, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    }
+						  }
+					}
+			      }
+		    }
+	  }
+	  
+
+	  //Reset the breathing skip counter
+	  if (breathIndex >= breathSkips)
+	  {
+		    breathIndex = 0;
+	  }
+	  
+	  //The display is only updated after entire frame is collected
+	  if (frameIndex == perFrame)
+	  {
+		    if (showBreathAngle)
+		    {
+			      draw(angleFFTMatBreath);
+			      //draw(breathMat);
+			      r5 = firstMaxDistBreath;
+			      r6 = firstMaxAngleBreath;
+		    }
+		    else
+		    {
+			      //draw(angleFFTMat);//only draw first target as a test
+			      r5 = firstMaxDist;
+			      r6 = firstMaxAngle;
+			      r7 = firstMaxVel;
+		    }
+		    
+		    frameIndex = 0;
+		    frameIndex2 = frameIndex2 + 1;
+	  }
+	  else
+	  {
+		    frameIndex = frameIndex + 1;
+	  }
+	  //sleep(frameDuration);  
+}
