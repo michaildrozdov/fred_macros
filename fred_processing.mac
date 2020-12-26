@@ -152,6 +152,12 @@ aa1=a1;
 pos=0;
 
 path_t="C:\multitarget_data\Indoor\test_66.sig";
+pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
+pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
+sig_add(pathOut, aa1);
+sig_delete_all(pathOut); //Now 0 signals in file
+sig_add(pathOutBreathing, aa1);
+sig_delete_all(pathOutBreathing); //Now 0 signals in file
 //path_t="C:\multitarget_data\Indoor\test_39.sig";  
                                                                        num=sig_get_count(path_t);
 
@@ -377,7 +383,9 @@ spectrumMaximums = signal(1, pointsToView, false);
 //currentDeviations = learningRate*(1-mask)*currentFrame*currentFrame + (1 - learningRate*(1-mask))*currentDeviations*currentDeviations;//update of std
 //meanValues = learningRate*(1-mask)*currentSignal + (1 -  learningRate*(1-mask))*meanValues;//mean update, only where mask nonzero
 
-maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12 
+maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12
+
+outSig = signal(1, 400, false); // To store maximum of 100 targets
 
 For(ii=N1;ii<N2;ii=ii+1)
 {
@@ -390,6 +398,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  lastUniqueMaximum = 0;
 	  perChannelMaximumsBreath = 0;
 	  lastUniqueMaximumBreath = 0;
+	  outSig = -1;
+	  
 	  
 	  s1 = get_matrix_row(ss1,ii);
 	  for (trans = 0; trans < numOfTrans; trans = trans + 1)
@@ -777,6 +787,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 	  }
 	
+	  validTargetIndex = 0;
 	  for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
 	  {
 		    for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
@@ -891,7 +902,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 							    }
 						  }
 					}
-
 			      } 
 		    }
 		    
@@ -950,6 +960,19 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      velocity = horizontalDrawScale[maximumVelIndex];
 			      angle = anglesDrawScale[maximumAngleIndex];
 			      
+			      indexOfIndex = validTargetIndex*4;
+			      indexOfRange = validTargetIndex*4 + 1;
+			      indexOfVelocity = validTargetIndex*4 + 2;
+			      indexOfAngle = validTargetIndex*4 + 3;
+			      if (validTargetIndex < 100)
+			      {
+					outSig[indexOfIndex] = validTargetIndex;
+					outSig[indexOfRange] = distance;
+					outSig[indexOfVelocity] = velocity;
+					outSig[indexOfAngle] = angle;
+					validTargetIndex = validTargetIndex + 1;
+			      }
+			      
 			      curX = distance*sin(angle*pi()/180);
 			      curY = distance*cos(angle*pi()/180);
 			      //print_line("1st object detected at r=", maximums[0], ", v=", maximumVelIndex-dopplerPadding/2+1, ", az= ", maximumAngleIndex - padAngleTo/2+1);
@@ -990,6 +1013,18 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      
 			      if ((velocity != prevTargetVel) or (angle != prevTargetAngle))
 			      {
+					indexOfIndex = validTargetIndex*4;
+					indexOfRange = validTargetIndex*4 + 1;
+					indexOfVelocity = validTargetIndex*4 + 2;
+					indexOfAngle = validTargetIndex*4 + 3;
+					if (validTargetIndex < 100)
+					{
+						  outSig[indexOfIndex] = validTargetIndex;
+						  outSig[indexOfRange] = distance;
+						  outSig[indexOfVelocity] = velocity;
+						  outSig[indexOfAngle] = angle;
+						  validTargetIndex = validTargetIndex + 1;
+					}
 					curX = distance*sin(angle*pi()/180);
 					curY = distance*cos(angle*pi()/180);
 					if (fullPrint)
@@ -1010,7 +1045,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 		    
 	  }
-	  
+	  sig_add(pathOut, outSig);
 	  
 	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 	  {
@@ -1212,6 +1247,9 @@ For(ii=N1;ii<N2;ii=ii+1)
 					breathAmplitudes[rInd] = breathAmplitudes[rInd] + dopplerResult[1] - dopplerResult[last];
 			      }
 		    }
+		    
+		    validTargetIndex = 0;
+		    outSig = -1;
 		    
 		    //Shifting previous breathing amplitude by one in slow time dimension
 		    for (bInd = breathingPeriod - 1; bInd > 0; bInd = bInd - 1)
@@ -1562,6 +1600,19 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  distance = verticalDrawScale[currentMaxPosition];
 						  angle = anglesDrawScale[maximumAngleIndex];
 						  
+						  indexOfIndex = validTargetIndex*4;
+						  indexOfRange = validTargetIndex*4 + 1;
+						  indexOfVelocity = validTargetIndex*4 + 2;
+						  indexOfAngle = validTargetIndex*4 + 3;
+						  if (validTargetIndex < 100)
+						  {
+							    outSig[indexOfIndex] = validTargetIndex;
+							    outSig[indexOfRange] = distance;
+							    outSig[indexOfVelocity] = velocity;
+							    outSig[indexOfAngle] = angle;
+							    validTargetIndex = validTargetIndex + 1;
+						  }
+						  
 						  curX = distance*sin(angle*pi()/180);
 						  curY = distance*cos(angle*pi()/180);
 						  
@@ -1595,6 +1646,19 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  distance = verticalDrawScale[currentMaxPosition];
 						  angle = anglesDrawScale[maximumAngleIndex];
 						  
+						  indexOfIndex = validTargetIndex*4;
+						  indexOfRange = validTargetIndex*4 + 1;
+						  indexOfVelocity = validTargetIndex*4 + 2;
+						  indexOfAngle = validTargetIndex*4 + 3;
+						  if (validTargetIndex < 100)
+						  {
+							    outSig[indexOfIndex] = validTargetIndex;
+							    outSig[indexOfRange] = distance;
+							    outSig[indexOfVelocity] = velocity;
+							    outSig[indexOfAngle] = angle;
+							    validTargetIndex = validTargetIndex + 1;
+						  }
+						  
 						  curX = distance*sin(angle*pi()/180);
 						  curY = distance*cos(angle*pi()/180);
 						  if (fullPrint)
@@ -1611,6 +1675,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 					}
 			      }
 		    }
+		    sig_add(pathOutBreathing, outSig);
 	  }
 	  
 
