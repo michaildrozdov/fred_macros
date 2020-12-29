@@ -120,6 +120,10 @@ prevChMat = matrix(8*numOfTrans, N); // matrix to hold normalized prev signals f
 prevChMat = 0;
 
 pathW="C:\multitarget_data\FRED\Kaizer.sig";
+path_t="C:\multitarget_data\Indoor\test_66.sig";
+pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
+pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
+
 W=sig_read(pathW,0);  
 Nor=2^12;
                                                                      
@@ -151,9 +155,7 @@ a1=0;
 aa1=a1;
 pos=0;
 
-path_t="C:\multitarget_data\Indoor\test_66.sig";
-pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
-pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
+
 sig_add(pathOut, aa1);
 sig_delete_all(pathOut); //Now 0 signals in file
 sig_add(pathOutBreathing, aa1);
