@@ -615,7 +615,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      prevIndex = ia - 1;
 			      prevPrevIndex = ia - 2;
 			      nextIndex = ia + 1;
-			      nextNextInde = ia + 2;
+			      nextNextIndex = ia + 2;
 			      currentScore=(hitMaximums[prevPrevIndex] + hitMaximums[nextNextIndex])/4
 						  + (hitMaximums[prevIndex] + hitMaximums[nextIndex])/2
 						  + hitMaximums[ia];
