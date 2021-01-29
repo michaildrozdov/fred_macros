@@ -37,7 +37,7 @@ padAngleTo = 32;
 breathSkips = 8; //how many chirps are acquired before next brething sample
 
 distPerPoint = deltaf*c/2/slope*1024/Nn;
-pointsToView = ceil(20/distPerPoint);
+pointsToView = ceil(30/distPerPoint);
 totalDistance = distPerPoint*(M/2+1);
 breathingDeltaT = breathSkips*T/1000;//seconds per sample
 breathingWindow = breathingPeriod*breathingDeltaT;//seconds
@@ -570,7 +570,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    targetSignal = averaged;
 
 		    prevMin = 0;
-
 		    for (ia = 1; ia < pointsToView; ia = ia + 1)
 		    {
 			      nextIndex = ia + 1;
@@ -789,18 +788,14 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 	  }
 	
-	  validTargetIndex = 0;
-	  for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
+	  if (frameIndex == perFrame)
 	  {
-		    for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
+		    validTargetIndex = 0;
+		    for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
 		    {
-	      	      
-			      //fill per target doppler-channel matrix
-			      if (frameIndex == perFrame)
+			      for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 			      {
-					//frameIndex = 0;
-					//print_line("");
-					//print_line("");
+					//fill per target doppler-channel matrix
 					if (chNum == 0)
 					{
 						  transposedRe = transpose(dopplerMatrixRe1);
@@ -904,117 +899,63 @@ For(ii=N1;ii<N2;ii=ii+1)
 							    }
 						  }
 					}
-			      } 
-		    }
-		    
-		    //have perTargetReal and perTargetImag completed
-		    //now can transpose and fft to get maximum direction
-		    
-		    perTargetTransposedRe = transpose(perTargetReal);
-		    perTargetTransposedIm = transpose(perTargetImag);
-		  
-		    maximumValueGlobal = 0;
-		    maximumVelIndex = 0;
-		    maximumAngleIndex = 0;
-		    for (velInd = 0; velInd < dopplerPadding; velInd = velInd+1)
-		    {
-			      shortAngleSig = get_matrix_row(perTargetTransposedRe, velInd) + j*get_matrix_row(perTargetTransposedIm, velInd);
-			      if (numOfTrans == 1)
-			      {
-					insert(shortAngleSig, 0, 4, angleFFTSig, 0); //5 channels data goes to first 5 points (azimuth)
-			      }
-			      else
-			      {
-					insert(shortAngleSig, 0, 9, angleFFTSig, 0); //10 channels data goes to first 10 points (azimuth) with two transmitters
-			      }
-			      set_label(shortAngleSig, 10, "a", "b");
-			      //r13 = mag(shortAngleSig);
-			      anglesSig = mag(fft(angleFFTSig));
-			      if (velInd == 0)
-			      {
-					//r8 = mag(angleFFTSig);
-					//r9 = anglesSig;
-			      }
-			      anglesSigCopy = anglesSig;
-			      insert(anglesSig, 0, padAngleTo/2, anglesSigCopy, padAngleTo/2-1);
-			      insert(anglesSig, padAngleTo/2 + 1, padAngleTo-1, anglesSigCopy, 0);
-			      
-			      pos  = 0;
-			      maxVal = max(anglesSigCopy, pos);
-			      if (maxVal > maximumValueGlobal)
-			      {
-					maximumValueGlobal = maxVal;
-					maximumVelIndex = velInd;
-					maximumAngleIndex = pos;
-			      }
-			      set_matrix_row(angleFFTMat, velInd, anglesSigCopy);//angle fft per each velocity
-		    }
-	  
-		    if (rInd == 0)//display
-		    {
-			      //print_line("Maximum value ", maxVal, " at vel ", maximumVelIndex, " at angle ", maximumAngleIndex);
-			      if (not(showBreathAngle))
-			      {
-					draw(angleFFTMat);
-			      }
-			      currentMaxPosition = maximums[rInd];
-			      distance = verticalDrawScale[currentMaxPosition];
-			      velocity = horizontalDrawScale[maximumVelIndex];
-			      angle = anglesDrawScale[maximumAngleIndex];
-			      
-			      indexOfIndex = validTargetIndex*4;
-			      indexOfRange = validTargetIndex*4 + 1;
-			      indexOfVelocity = validTargetIndex*4 + 2;
-			      indexOfAngle = validTargetIndex*4 + 3;
-			      if (validTargetIndex < 100)
-			      {
-					outSig[indexOfIndex] = validTargetIndex;
-					outSig[indexOfRange] = distance;
-					outSig[indexOfVelocity] = velocity;
-					outSig[indexOfAngle] = angle;
-					validTargetIndex = validTargetIndex + 1;
 			      }
 			      
-			      curX = distance*sin(angle*pi()/180);
-			      curY = distance*cos(angle*pi()/180);
-			      //print_line("1st object detected at r=", maximums[0], ", v=", maximumVelIndex-dopplerPadding/2+1, ", az= ", maximumAngleIndex - padAngleTo/2+1);
-			      if (fullPrint)
-			      {
-					print_line("1st object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
-			      }
-			      firstMaxDist[frameIndex2] = distance;
-			      firstMaxAngle[frameIndex2] = angle;
-			      firstMaxVel[frameIndex2] = velocity;
+			      //have perTargetReal and perTargetImag completed
+			      //now can transpose and fft to get maximum direction
 			      
-			      prevTargetAngle = angle;
-			      prevTargetVel = velocity;
-		    }
-		    else
-		    {
-			      moreThan3rd = false;
-			      if (rInd == 1)
+			      perTargetTransposedRe = transpose(perTargetReal);
+			      perTargetTransposedIm = transpose(perTargetImag);
+			    
+			      maximumValueGlobal = 0;
+			      maximumVelIndex = 0;
+			      maximumAngleIndex = 0;
+			      for (velInd = 0; velInd < dopplerPadding; velInd = velInd+1)
 			      {
-					numberStr = "2nd";
-			      }
-			      else
-			      {
-					if (rInd == 2)
+					shortAngleSig = get_matrix_row(perTargetTransposedRe, velInd) + j*get_matrix_row(perTargetTransposedIm, velInd);
+					if (numOfTrans == 1)
 					{
-						  numberStr = "3rd";
+						  insert(shortAngleSig, 0, 4, angleFFTSig, 0); //5 channels data goes to first 5 points (azimuth)
 					}
 					else
 					{
-						  moreThan3rd = true;
+						  insert(shortAngleSig, 0, 9, angleFFTSig, 0); //10 channels data goes to first 10 points (azimuth) with two transmitters
 					}
+					set_label(shortAngleSig, 10, "a", "b");
+					//r13 = mag(shortAngleSig);
+					anglesSig = mag(fft(angleFFTSig));
+					if (velInd == 0)
+					{
+						  //r8 = mag(angleFFTSig);
+						  //r9 = anglesSig;
+					}
+					anglesSigCopy = anglesSig;
+					insert(anglesSig, 0, padAngleTo/2, anglesSigCopy, padAngleTo/2-1);
+					insert(anglesSig, padAngleTo/2 + 1, padAngleTo-1, anglesSigCopy, 0);
+					
+					pos  = 0;
+					maxVal = max(anglesSigCopy, pos);
+					if (maxVal > maximumValueGlobal)
+					{
+						  maximumValueGlobal = maxVal;
+						  maximumVelIndex = velInd;
+						  maximumAngleIndex = pos;
+					}
+					set_matrix_row(angleFFTMat, velInd, anglesSigCopy);//angle fft per each velocity
 			      }
-			      
-			      currentMaxPosition = maximums[rInd];
-			      distance = verticalDrawScale[currentMaxPosition];
-			      velocity = horizontalDrawScale[maximumVelIndex];
-			      angle = anglesDrawScale[maximumAngleIndex];
-			      
-			      if ((velocity != prevTargetVel) or (angle != prevTargetAngle))
+		    
+			      if (rInd == 0)//display
 			      {
+					//print_line("Maximum value ", maxVal, " at vel ", maximumVelIndex, " at angle ", maximumAngleIndex);
+					if (not(showBreathAngle))
+					{
+						  draw(angleFFTMat);
+					}
+					currentMaxPosition = maximums[rInd];
+					distance = verticalDrawScale[currentMaxPosition];
+					velocity = horizontalDrawScale[maximumVelIndex];
+					angle = anglesDrawScale[maximumAngleIndex];
+					
 					indexOfIndex = validTargetIndex*4;
 					indexOfRange = validTargetIndex*4 + 1;
 					indexOfVelocity = validTargetIndex*4 + 2;
@@ -1027,25 +968,79 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  outSig[indexOfAngle] = angle;
 						  validTargetIndex = validTargetIndex + 1;
 					}
+					
 					curX = distance*sin(angle*pi()/180);
 					curY = distance*cos(angle*pi()/180);
+					//print_line("1st object detected at r=", maximums[0], ", v=", maximumVelIndex-dopplerPadding/2+1, ", az= ", maximumAngleIndex - padAngleTo/2+1);
 					if (fullPrint)
 					{
-						  if (moreThan3rd)
+						  print_line("1st object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+					}
+					firstMaxDist[frameIndex2] = distance;
+					firstMaxAngle[frameIndex2] = angle;
+					firstMaxVel[frameIndex2] = velocity;
+					
+					//prevTargetAngle = angle;
+					//prevTargetVel = velocity;
+			      }
+			      else
+			      {
+					moreThan3rd = false;
+					if (rInd == 1)
+					{
+						  numberStr = "2nd";
+					}
+					else
+					{
+						  if (rInd == 2)
 						  {
-							    print_line(rInd+1, "th object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    numberStr = "3rd";
 						  }
 						  else
 						  {
-							    print_line(numberStr, " object detected at r=", distance, ", v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    moreThan3rd = true;
 						  }
 					}
 					
-					prevTargetAngle = angle;
-					prevTargetVel = velocity;
+					currentMaxPosition = maximums[rInd];
+					distance = verticalDrawScale[currentMaxPosition];
+					velocity = horizontalDrawScale[maximumVelIndex];
+					angle = anglesDrawScale[maximumAngleIndex];
+					
+					if ((velocity != prevTargetVel) or (angle != prevTargetAngle))
+					{
+						  indexOfIndex = validTargetIndex*4;
+						  indexOfRange = validTargetIndex*4 + 1;
+						  indexOfVelocity = validTargetIndex*4 + 2;
+						  indexOfAngle = validTargetIndex*4 + 3;
+						  if (validTargetIndex < 100)
+						  {
+							    outSig[indexOfIndex] = validTargetIndex;
+							    outSig[indexOfRange] = distance;
+							    outSig[indexOfVelocity] = velocity;
+							    outSig[indexOfAngle] = angle;
+							    validTargetIndex = validTargetIndex + 1;
+						  }
+						  curX = distance*sin(angle*pi()/180);
+						  curY = distance*cos(angle*pi()/180);
+						  if (fullPrint)
+						  {
+							    if (moreThan3rd)
+							    {
+								      print_line(rInd+1, "th object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    }
+							    else
+							    {
+								      print_line(numberStr, " object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    }
+						  }
+						  
+						  prevTargetAngle = angle;
+						  prevTargetVel = velocity;
+					}
 			      }
+			      
 		    }
-		    
 	  }
 	  sig_add(pathOut, outSig);
 	  
@@ -1712,5 +1707,5 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  {
 		    frameIndex = frameIndex + 1;
 	  }
-	  //sleep(frameDuration);  
+	  //sleep(frameDuration);
 }
