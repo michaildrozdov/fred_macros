@@ -391,6 +391,7 @@ outSig = signal(1, 400, false); // To store maximum of 100 targets
 
 For(ii=N1;ii<N2;ii=ii+1)
 {
+	  t1=time();
 	  prevTargetAngle = 0;
 	  prevTargetVel = 0;
 	  print_line("At time ", ii*Tc/1000, " seconds:");
@@ -1192,42 +1193,91 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    breathAmplitudes = 0; //it is the signal, where for each distance point, current amplitude of the 1st Doppler frequency is stored
 		    numberOfBreathing = 0; //will contain total number of detected brathing distances
 		    
-		    for (chNum = 0; chNum < 5; chNum = chNum + 1) // only run through azimuth channels for now
+		    //prepare transposed doppler matrices
+		    for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 		    {
 			      //depending on channel we select proper source of non transposed data
 			      //but transpose is the same since it is used here in the loop
 			      if (chNum == 0)
 			      {
-					transposedBreathRe = transpose(dopplerBreathMatrixRe1);
-					transposedBreathIm = transpose(dopplerBreathMatrixIm1);
+					transposedBreathRe11 = transpose(dopplerBreathMatrixRe1);
+					transposedBreathIm11 = transpose(dopplerBreathMatrixIm1);
 			      }
 			      if (chNum == 1)
 			      {
-					transposedBreathRe = transpose(dopplerBreathMatrixRe2);
-					transposedBreathIm = transpose(dopplerBreathMatrixIm2);
+					transposedBreathRe21 = transpose(dopplerBreathMatrixRe2);
+					transposedBreathIm21 = transpose(dopplerBreathMatrixIm2);
 			      }
 			      if (chNum == 2)
 			      {
-					transposedBreathRe = transpose(dopplerBreathMatrixRe3);
-					transposedBreathIm = transpose(dopplerBreathMatrixIm3);
+					transposedBreathRe31 = transpose(dopplerBreathMatrixRe3);
+					transposedBreathIm31 = transpose(dopplerBreathMatrixIm3);
 			      }
 			      if (chNum == 3)
 			      {
-					transposedBreathRe = transpose(dopplerBreathMatrixRe4);
-					transposedBreathIm = transpose(dopplerBreathMatrixIm4);
+					transposedBreathRe41 = transpose(dopplerBreathMatrixRe4);
+					transposedBreathIm41 = transpose(dopplerBreathMatrixIm4);
 			      }
 			      if (chNum == 4)
 			      {
-					transposedBreathRe = transpose(dopplerBreathMatrixRe5);
-					transposedBreathIm = transpose(dopplerBreathMatrixIm5);
+					transposedBreathRe51 = transpose(dopplerBreathMatrixRe5);
+					transposedBreathIm51 = transpose(dopplerBreathMatrixIm5);
 			      }
 			      
+			      if (chNum == 8)
+			      {
+					transposedBreathRe12 = transpose(dopplerBreathMatrixRe12);
+					transposedBreathIm12 = transpose(dopplerBreathMatrixIm12);
+			      }
+			      if (chNum == 9)
+			      {
+					transposedBreathRe22 = transpose(dopplerBreathMatrixRe22);
+					transposedBreathIm22 = transpose(dopplerBreathMatrixIm22);
+			      }
+			      if (chNum == 10)
+			      {
+					transposedBreathRe32 = transpose(dopplerBreathMatrixRe32);
+					transposedBreathIm32 = transpose(dopplerBreathMatrixIm32);
+			      }
+			      if (chNum == 11)
+			      {
+					transposedBreathRe42 = transpose(dopplerBreathMatrixRe42);
+					transposedBreathIm42 = transpose(dopplerBreathMatrixIm42);
+			      }
+			      if (chNum == 12)
+			      {
+					transposedBreathRe52 = transpose(dopplerBreathMatrixRe52);
+					transposedBreathIm52 = transpose(dopplerBreathMatrixIm52);
+			      }
+		    }
 		    
+		    
+		    for (chNum = 0; chNum < 5; chNum = chNum + 1) // only run through azimuth channels for now
+		    {
 			      //for all distances we...
 			      for (rInd = 0; rInd < pointsToView; rInd = rInd + 1)
 			      {
 					//make a complex signal from the components
-					shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+					if (chNum == 0)
+					{
+						  shortCompl2 = get_matrix_row(transposedBreathRe11, rInd) + j*get_matrix_row(transposedBreathIm11, rInd);
+					}
+					if (chNum == 1)
+					{
+						  shortCompl2 = get_matrix_row(transposedBreathRe21, rInd) + j*get_matrix_row(transposedBreathIm21, rInd);
+					}
+					if (chNum == 2)
+					{
+						  shortCompl2 = get_matrix_row(transposedBreathRe31, rInd) + j*get_matrix_row(transposedBreathIm31, rInd);
+					}
+					if (chNum == 3)
+					{
+						  shortCompl2 = get_matrix_row(transposedBreathRe41, rInd) + j*get_matrix_row(transposedBreathIm41, rInd);
+					}
+					if (chNum == 4)
+					{
+						  shortCompl2 = get_matrix_row(transposedBreathRe51, rInd) + j*get_matrix_row(transposedBreathIm51, rInd);
+					}
 					
 					//do the zero padding
 					insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
@@ -1420,63 +1470,30 @@ For(ii=N1;ii<N2;ii=ii+1)
 					//Only use channels with different azimuth
 					//Same processing as before for the Doppler FFT
 					for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
-					{
-						  if (chNum == 0)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe1);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm1);
-						  }
-						  if (chNum == 1)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe2);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm2);
-						  }
-						  if (chNum == 2)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe3);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm3);
-						  }
-						  if (chNum == 3)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe4);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm4);
-						  }
-						  if (chNum == 4)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe5);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm5);
-						  }
-						  
-						  if (chNum == 8)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe12);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm12);
-						  }
-						  if (chNum == 9)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe22);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm22);
-						  }
-						  if (chNum == 10)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe32);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm32);
-						  }
-						  if (chNum == 11)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe42);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm42);
-						  }
-						  if (chNum == 12)
-						  {
-							    transposedBreathRe = transpose(dopplerBreathMatrixRe52);
-							    transposedBreathIm = transpose(dopplerBreathMatrixIm52);
-						  }
-						  
+					{  
 						  if ((numOfTrans == 1) and (chNum < 5))
 						  {
 							    //The Doppler FFT processsing with zero padding
-							    shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+							    if (chNum == 0)
+							    {
+								      shortCompl2 = get_matrix_row(transposedBreathRe11, rInd) + j*get_matrix_row(transposedBreathIm11, rInd);
+							    }
+							     if (chNum == 1)
+							    {
+								      shortCompl2 = get_matrix_row(transposedBreathRe21, rInd) + j*get_matrix_row(transposedBreathIm21, rInd);
+							    }
+							     if (chNum == 2)
+							    {
+								      shortCompl2 = get_matrix_row(transposedBreathRe31, rInd) + j*get_matrix_row(transposedBreathIm31, rInd);
+							    }
+							     if (chNum == 3)
+							    {
+								      shortCompl2 = get_matrix_row(transposedBreathRe41, rInd) + j*get_matrix_row(transposedBreathIm41, rInd);
+							    }
+							     if (chNum == 4)
+							    {
+								      shortCompl2 = get_matrix_row(transposedBreathRe51, rInd) + j*get_matrix_row(transposedBreathIm51, rInd);
+							    }
 							    insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
 							    dopplerResultComplex = fft(longCompl);
 							    
@@ -1497,7 +1514,26 @@ For(ii=N1;ii<N2;ii=ii+1)
 							    if ((chNum > 7) and (chNum < 13))//second transmitter
 							    {
 								      //The Doppler FFT processsing with zero padding
-								      shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+								      if (chNum == 8)
+								      {
+										shortCompl2 = get_matrix_row(transposedBreathRe12, rInd) + j*get_matrix_row(transposedBreathIm12, rInd);
+								      }
+								       if (chNum == 9)
+								      {
+										shortCompl2 = get_matrix_row(transposedBreathRe22, rInd) + j*get_matrix_row(transposedBreathIm22, rInd);
+								      }
+								       if (chNum == 10)
+								      {
+										shortCompl2 = get_matrix_row(transposedBreathRe32, rInd) + j*get_matrix_row(transposedBreathIm32, rInd);
+								      }
+								       if (chNum == 11)
+								      {
+										shortCompl2 = get_matrix_row(transposedBreathRe42, rInd) + j*get_matrix_row(transposedBreathIm42, rInd);
+								      }
+								       if (chNum == 12)
+								      {
+										shortCompl2 = get_matrix_row(transposedBreathRe52, rInd) + j*get_matrix_row(transposedBreathIm52, rInd);
+								      }
 								      insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
 								      dopplerResultComplex = fft(longCompl);
 								      
@@ -1518,7 +1554,26 @@ For(ii=N1;ii<N2;ii=ii+1)
 								      if (chNum < 5)
 								      {
 										//The Doppler FFT processsing with zero padding
-										shortCompl2 = get_matrix_row(transposedBreathRe, rInd) + j*get_matrix_row(transposedBreathIm, rInd);
+										if (chNum == 0)
+										{
+											  shortCompl2 = get_matrix_row(transposedBreathRe11, rInd) + j*get_matrix_row(transposedBreathIm11, rInd);
+										}
+										 if (chNum == 1)
+										{
+											  shortCompl2 = get_matrix_row(transposedBreathRe21, rInd) + j*get_matrix_row(transposedBreathIm21, rInd);
+										}
+										 if (chNum == 2)
+										{
+											  shortCompl2 = get_matrix_row(transposedBreathRe31, rInd) + j*get_matrix_row(transposedBreathIm31, rInd);
+										}
+										 if (chNum == 3)
+										{
+											  shortCompl2 = get_matrix_row(transposedBreathRe41, rInd) + j*get_matrix_row(transposedBreathIm41, rInd);
+										}
+										 if (chNum == 4)
+										{
+											  shortCompl2 = get_matrix_row(transposedBreathRe51, rInd) + j*get_matrix_row(transposedBreathIm51, rInd);
+										}
 										insert(shortCompl2, 0, perBreathFrame-1, longCompl, 0);
 										dopplerResultComplex = fft(longCompl);
 										
@@ -1708,4 +1763,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    frameIndex = frameIndex + 1;
 	  }
 	  //sleep(frameDuration);
+	  spent = time() - t1;
+	  print_line("Time on a single pass ", spent);
 }
