@@ -2,7 +2,15 @@
 clear_variables();
 requiredAmpl = 2;
 requiredRise = 0.05;//mV per point
-scoreThreshold = 4;
+numOfTrans = 1; //number of transmitting antennas
+perFrame = 16;
+perBreathFrame = 64;
+breathingPeriod = 128;//of slow samples
+dopplerPadding = 128;
+padAngleTo = 32;
+breathSkips = 8; //how many chirps are acquired before next brething sample
+
+scoreThreshold = perFrame*numOfTrans*8*0.6; //60% of all channels had a match
 requiredMaximumMult = 0.25;
 fullPrint = true;
 showBreathAngle = false;
@@ -23,18 +31,11 @@ Nn=pow(2,Mn);   //Padding window number
 dT =T/M;            //Time step
 Tn=dT*Nn;         //Padding window duration, ms 
 frameDuration = 200;//pause between displayed frames, ms
-numOfTrans = 1; //number of transmitting antennas
+
 
 c = 0.3;//m/ns
 slope = 0.5/(T/1000);//0.5 GHz/10 ms
 deltaf = 1/(T/1000);//original IF delta
-
-perFrame = 16;
-perBreathFrame = 64;
-breathingPeriod = 128;//of slow samples
-dopplerPadding = 128;
-padAngleTo = 32;
-breathSkips = 8; //how many chirps are acquired before next brething sample
 
 distPerPoint = deltaf*c/2/slope*1024/Nn;
 pointsToView = ceil(30/distPerPoint);
@@ -389,6 +390,9 @@ maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12
 
 outSig = signal(1, 400, false); // To store maximum of 100 targets
 
+hitMaximums=signal(Tn,pointsToView,false);
+hitMaximums =0;
+
 For(ii=N1;ii<N2;ii=ii+1)
 {
 	  t1=time();
@@ -428,9 +432,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    set_matrix_row(chMat, 6 + trans*8, ch_7/Nor);
 		    set_matrix_row(chMat, 7 + trans*8, ch_8/Nor);
 	  }
-	  
-	  hitMaximums=signal(Tn,pointsToView,false);
-	  hitMaximums =0;
 	  
 	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 	  {
@@ -604,44 +605,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    nextcycle:
 	  }
 	  
-	  maximums = signal(1,100,false);
-	  maximums = 0;
-	  totalFound = 0; //clear selected maximums
-	  
-	  for (ia = maximumsDelay; ia < pointsToView - 2; ia = ia + 1)
-	  {  
-		    if (hitMaximums[ia] >= 2)
-		    {
-			      prevIndex = ia - 1;
-			      prevPrevIndex = ia - 2;
-			      nextIndex = ia + 1;
-			      nextNextIndex = ia + 2;
-			      currentScore=(hitMaximums[prevPrevIndex] + hitMaximums[nextNextIndex])/4
-						  + (hitMaximums[prevIndex] + hitMaximums[nextIndex])/2
-						  + hitMaximums[ia];
-						  
-			      if ((currentScore >= scoreThreshold) and (totalFound - 1 < 100))
-			      {
-					maximums[totalFound] = ia;
-					totalFound = totalFound + 1;
-			      }
-		    }
-	  }
-
-	  print_line("Number of selected maximums ", totalFound);
-	  if (totalFound == 0) //nothing to set, use previous
-	  {
-		    if (frameIndex == perFrame)
-		    {
-			      if (frameIndex2 > 0)
-			      {
-					prefFrameIndex2 = frameIndex2 - 1;
-					firstMaxDist[frameIndex2] = firstMaxDist[prefFrameIndex2];
-					firstMaxAngle[frameIndex2] = firstMaxAngle[prefFrameIndex2];
-					firstMaxVel[frameIndex2] = firstMaxVel[prefFrameIndex2];
-			      }
-		    }
-	  }
 	  
 	  totalFoundBreath = 0;
 	  
@@ -791,6 +754,70 @@ For(ii=N1;ii<N2;ii=ii+1)
 	
 	  if (frameIndex == perFrame)
 	  {
+		    maximums = signal(1,100,false);
+		    maximums = 0;
+		    totalFound = 0; //clear selected maximums
+		    
+		    scores = signal(10, pointsToView, false);
+		    scores = 0;
+		    
+		    for (ia = maximumsDelay; ia < pointsToView - 2; ia = ia + 1)
+		    {  
+			      if (hitMaximums[ia] >= scoreThreshold/4)
+			      {
+					prevIndex = ia - 1;
+					prevPrevIndex = ia - 2;
+					nextIndex = ia + 1;
+					nextNextIndex = ia + 2;
+					currentScore=(hitMaximums[prevPrevIndex] + hitMaximums[nextNextIndex])/4
+							    + (hitMaximums[prevIndex] + hitMaximums[nextIndex])/2
+							    + hitMaximums[ia];
+							    
+					if (currentScore >= scoreThreshold)
+					{
+						  scores[ia] = currentScore;
+					}
+			      }
+		    }
+		    
+		    for (ia = maximumsDelay; ia < pointsToView - 1; ia = ia + 1)
+		    { 
+			      prevIndex = ia - 1;
+			      nextIndex = ia + 1;
+			      if (totalFound - 1 < 100)
+			      {
+					if (scores[ia] > scores[prevIndex])
+					{
+		      
+						  if (scores[ia] >= scores[nextIndex])
+						  {
+							    maximums[totalFound] = ia;
+							    totalFound = totalFound + 1;
+						  }
+					}
+			      }
+		    }
+		    
+		    r7 = hitMaximums;
+
+		    // hitMaximums were collected during the entire frame. Now we reset these
+		    hitMaximums =0;
+
+		    print_line("Number of selected maximums ", totalFound);
+		    if (totalFound == 0) //nothing to set, use previous
+		    {
+			      if (frameIndex == perFrame)
+			      {
+					if (frameIndex2 > 0)
+					{
+						  prefFrameIndex2 = frameIndex2 - 1;
+						  firstMaxDist[frameIndex2] = firstMaxDist[prefFrameIndex2];
+						  firstMaxAngle[frameIndex2] = firstMaxAngle[prefFrameIndex2];
+						  firstMaxVel[frameIndex2] = firstMaxVel[prefFrameIndex2];
+					}
+			      }
+		    }
+	  
 		    validTargetIndex = 0;
 		    for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
 		    {
@@ -1042,6 +1069,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      }
 			      
 		    }
+		    //pause();
 	  }
 	  sig_add(pathOut, outSig);
 	  
@@ -1752,7 +1780,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      //draw(angleFFTMat);//only draw first target as a test
 			      r5 = firstMaxDist;
 			      r6 = firstMaxAngle;
-			      r7 = firstMaxVel;
+			      //r7 = firstMaxVel;
 		    }
 		    
 		    frameIndex = 0;
