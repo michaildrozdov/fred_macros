@@ -1,5 +1,10 @@
 //Video 4
 clear_variables();
+pathW="C:\multitarget_data\FRED\Kaizer.sig";
+path_t="C:\multitarget_data\Indoor\test_66.sig";
+pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
+pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
+
 requiredAmpl = 2;
 requiredRise = 0.05;//mV per point
 numOfTrans = 1; //number of transmitting antennas
@@ -36,6 +41,7 @@ frameDuration = 200;//pause between displayed frames, ms
 c = 0.3;//m/ns
 slope = 0.5/(T/1000);//0.5 GHz/10 ms
 deltaf = 1/(T/1000);//original IF delta
+Nor=2^12;
 
 distPerPoint = deltaf*c/2/slope*1024/Nn;
 pointsToView = ceil(30/distPerPoint);
@@ -58,9 +64,10 @@ dvel = lambda0*domega/4/pi()/Tc*1000;
 
 
 dphase = 2*pi()/padAngleTo;
-
 out(dvel);
 
+learningRate = 0.05;//How fast the mean phase change and the deviation of the phase change will be updated by new measurements
+maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12
 
 //Main drawing axes
 verticalDrawScale = signal((pointsToView-1)*distPerPoint, pointsToView, false);
@@ -120,14 +127,8 @@ chMat = matrix(8*numOfTrans, N); // matrix to hold normalized signals
 prevChMat = matrix(8*numOfTrans, N); // matrix to hold normalized prev signals for the MTI
 prevChMat = 0;
 
-pathW="C:\multitarget_data\FRED\Kaizer.sig";
-path_t="C:\multitarget_data\Indoor\test_66.sig";
-pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
-pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
-
 W=sig_read(pathW,0);  
-Nor=2^12;
-                                                                     
+                                                             
 SigZP_1=signal(Tn,Nn,false); 
 SigZP_1s=SigZP_1;
 SigZP_2=SigZP_1;
@@ -181,10 +182,9 @@ firstMaxAngleBreath = 0;
 ss1=matrix(num,N*8*numOfTrans);
 N1=0;
 N2=num;
-
-                                                       
- avgVel = 0;
- avgRate = 0;
+                                               
+avgVel = 0;
+avgRate = 0;
 For(ii=0;ii<num;ii=ii+1)
 {
 	  s1 = sig_read(path_t,ii);
@@ -376,17 +376,12 @@ deviationsPerChannel = matrix(8*numOfTrans, count(prevPhaseSig));
 deviationsPerChannel = 0;
 
 breathAmplitudes = signal(1, pointsToView, false);
-
-learningRate = 0.05;//How fast the mean phase change and the deviation of the phase change will be updated by new measurements
-
 spectrumMaximums = signal(1, pointsToView, false);
 
 //The code below is not used, but copied from the RGA implementation for the reference
 //We don't use the mask here, so the implementation is simpler
 //currentDeviations = learningRate*(1-mask)*currentFrame*currentFrame + (1 - learningRate*(1-mask))*currentDeviations*currentDeviations;//update of std
 //meanValues = learningRate*(1-mask)*currentSignal + (1 -  learningRate*(1-mask))*meanValues;//mean update, only where mask nonzero
-
-maximumsDelay=ceil(1.037/distperpoint); //14 when Mn=12
 
 outSig = signal(1, 400, false); // To store maximum of 100 targets
 
