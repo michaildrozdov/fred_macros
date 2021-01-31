@@ -16,6 +16,7 @@ padAngleTo = 32;
 breathSkips = 8; //how many chirps are acquired before next brething sample
 
 scoreThreshold = perFrame*numOfTrans*8*0.6; //60% of all channels had a match
+breathingScoreThreshold = breathSkips*numOfTrans*8*0.3; //low threshold compared to moving as there are more conditions to pass for the breathing
 requiredMaximumMult = 0.25;
 fullPrint = true;
 showBreathAngle = false;
@@ -388,6 +389,9 @@ outSig = signal(1, 400, false); // To store maximum of 100 targets
 hitMaximums=signal(Tn,pointsToView,false);
 hitMaximums =0;
 
+hitMaximumsBreath=signal(Tn,pointsToView,false);
+hitMaximumsBreath =0;
+
 For(ii=N1;ii<N2;ii=ii+1)
 {
 	  t1=time();
@@ -489,9 +493,9 @@ For(ii=N1;ii<N2;ii=ii+1)
 
 					if (currentDeviations[phasePt] < 0.5*meanStd)
 					{
-						  maximumsBreath[totalFoundBreath] = phasePt;
-						  //print_line("New breath point found ", currentDeviations[phasePt], " at ", phasePt);
-						  totalFoundBreath = totalFoundBreath + 1;
+						  //maximumsBreath[totalFoundBreath] = phasePt;
+						  //totalFoundBreath = totalFoundBreath + 1;
+						  hitMaximumsBreath[phasePt] = hitMaximumsBreath[phasePt] + 1;
 					}
 	
 					
@@ -600,71 +604,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    nextcycle:
 	  }
 	  
-	  
-	  totalFoundBreath = 0;
-	  
-	  for (mNumGlobalBreath = 0; mNumGlobalBreath < lastUniqueMaximumBreath; mNumGlobalBreath = mNumGlobalBreath + 1)
-	  {
-		    for (chNum = 0; chNum < 8; chNum = chNum + 1)
-		    {
-			      localMaximums = get_matrix_row(perChannelMaximumsBreath, chNum);
-			      for (mNumLocal = 0; mNumLocal < 100; mNumLocal = mNumLocal + 1)
-			      {
-					if (localMaximums[mNumLocal] < 1) // 0
-					{
-						  goto earlytwotwo;
-					}
-					else
-					{
-						  if (uniqueMaximumsBreath[mNumGlobalBreath] == localMaximums[mNumLocal])
-						  {
-							    uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 1;
-						  }
-						  else
-						  {
-							    if (abs(uniqueMaximumsBreath[mNumGlobalBreath] - localMaximums[mNumLocal]) < 2)
-							    {
-								      uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 0.5;
-							    }
-							    else
-							    {
-								      if (abs(uniqueMaximumsBreath[mNumGlobalBreath] - localMaximums[mNumLocal]) < 3)
-								      {
-										uniqueScoresBreath[mNumGlobalBreath] = uniqueScoresBreath[mNumGlobalBreath] + 0.25;
-								      }
-							    }
-						  }
-					}
-
-			      }
-			      earlytwotwo:
-		    }
-		    maximumVal = uniqueMaximumsBreath[mNumGlobalBreath];
-		    currentScore = uniqueScoresBreath[mNumGlobalBreath];
-		    
-		    if (currentScore >= 2)
-		    {
-			      maximumsBreath[totalFoundBreath] = maximumVal;
-			      totalFoundBreath = totalFoundBreath + 1;
-		    }
-		    
-		    //print_line("Maximum number ", mNumGlobal, " is ", maximumVal, ". It has score ", currentScore);
-	  }
-	  
-	  print_line("Number of selected candidate points for the breath detection ", totalFoundBreath);
-	  
-	  if (totalFoundBreath == 0) //nothing to set, use previous
-	  {
-		    if (frameIndex == perFrame)
-		    {
-			      if (frameIndex2 > 0)
-			      {
-					prefFrameIndex2 = frameIndex2 - 1;
-					firstMaxDistBreath[frameIndex2] = firstMaxDistBreath[prefFrameIndex2];
-					firstMaxAngleBreath[frameIndex2] = firstMaxAngleBreath[prefFrameIndex2];
-			      }
-		    }
-	  }
 	
 	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 	  {
@@ -1213,6 +1152,45 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  
 	  if (breathIndex >= breathSkips) //we update the slow time samples with some step to fit several breaths in the period of FFT
 	  {
+		    totalFoundBreath = 0;
+	  
+		    for (ia = maximumsDelay; ia < pointsToView - 2; ia = ia + 1)
+		    {  
+			      if (hitMaximumsBreath[ia] >= breathingScoreThreshold/4)
+			      {
+					prevIndex = ia - 1;
+					prevPrevIndex = ia - 2;
+					nextIndex = ia + 1;
+					nextNextIndex = ia + 2;
+					currentScore=(hitMaximumsBreath[prevPrevIndex] + hitMaximumsBreath[nextNextIndex])/4
+							    + (hitMaximumsBreath[prevIndex] + hitMaximumsBreath[nextIndex])/2
+							    + hitMaximumsBreath[ia];
+							    
+					if ((currentScore >= breathingScoreThreshold) and (totalFoundBreath + 1 < 100))
+					{
+						  maximumsBreath[totalFoundBreath] = ia;
+						  totalFoundBreath = totalFoundBreath + 1;
+					}
+			      }
+		    }
+		    
+		    hitMaximumsBreath =0; //reset for next breathSkips number of  signals
+		    
+		    print_line("Number of selected candidate points for the breath detection ", totalFoundBreath);
+	  
+		    if (totalFoundBreath == 0) //nothing to set, use previous
+		    {
+			      if (frameIndex == perFrame)
+			      {
+					if (frameIndex2 > 0)
+					{
+						  prefFrameIndex2 = frameIndex2 - 1;
+						  firstMaxDistBreath[frameIndex2] = firstMaxDistBreath[prefFrameIndex2];
+						  firstMaxAngleBreath[frameIndex2] = firstMaxAngleBreath[prefFrameIndex2];
+					}
+			      }
+		    }
+	  
 		    breathAmplitudes = 0; //it is the signal, where for each distance point, current amplitude of the 1st Doppler frequency is stored
 		    numberOfBreathing = 0; //will contain total number of detected brathing distances
 		    
