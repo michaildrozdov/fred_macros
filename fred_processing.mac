@@ -1,13 +1,14 @@
 //Video 4
 clear_variables();
 pathW="C:\multitarget_data\FRED\Kaizer.sig";
-path_t="C:\multitarget_data\Indoor\test_66.sig";
+//path_t="C:\multitarget_data\Indoor\test_90a.sig";
+path_t = "C:\multitarget_data\Indoor\Fred-2021-02-12\test_328-T1-T2-T3-T4-0_right.sig";
 pathOut="C:\multitarget_data\Indoor\test_66_out.sig";
 pathOutBreathing="C:\multitarget_data\Indoor\test_66_out_breathing.sig";
 
-requiredAmpl = 2;
-requiredRise = 0.05;//mV per point
-numOfTrans = 1; //number of transmitting antennas
+requiredAmpl = 0.2;
+requiredRise = 0.01;//mV per point
+numOfTrans = 4; //number of transmitting antennas
 perFrame = 16;
 perBreathFrame = 64;
 breathingPeriod = 128;//of slow samples
@@ -15,8 +16,8 @@ dopplerPadding = 128;
 padAngleTo = 32;
 breathSkips = 8; //how many chirps are acquired before next brething sample
 
-scoreThreshold = perFrame*numOfTrans*8*0.6; //60% of all channels had a match
-breathingScoreThreshold = breathSkips*numOfTrans*8*0.3; //low threshold compared to moving as there are more conditions to pass for the breathing
+scoreThreshold = perFrame*8*0.3; //60% of all channels had a match
+breathingScoreThreshold = breathSkips*8*0.2; //low threshold compared to moving as there are more conditions to pass for the breathing
 requiredMaximumMult = 0.25;
 fullPrint = true;
 showBreathAngle = false;
@@ -392,12 +393,13 @@ hitMaximums =0;
 hitMaximumsBreath=signal(Tn,pointsToView,false);
 hitMaximumsBreath =0;
 
+moveSteps = 0;
 For(ii=N1;ii<N2;ii=ii+1)
 {
 	  t1=time();
 	  prevTargetAngle = 0;
 	  prevTargetVel = 0;
-	  print_line("At time ", ii*Tc/1000, " seconds:");
+	  //print_line("At time ", ii*Tc/1000, " seconds:");
 	  uniqueMaximumsBreath = 0;
 	  uniqueScoresBreath = 0;
 	  perChannelMaximums = 0;
@@ -412,14 +414,14 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  {
 		    for(i=0;i<N;i=i+1)
 		    {
-			      ch_1[i] = s1[i * 8 + N*trans];
-			      ch_2[i] = s1[i * 8 + 1 + N*trans];
-			      ch_3[i] = s1[i * 8 + 2 + N*trans];
-			      ch_4[i] = s1[i * 8 + 3 + N*trans];
-			      ch_5[i] = s1[i * 8 + 4 + N*trans];
-			      ch_6[i] = s1[i * 8 + 5 + N*trans];
-			      ch_7[i] = s1[i * 8 + 6 + N*trans];
-			      ch_8[i] = s1[i * 8 + 7 + N*trans];
+			      ch_1[i] = s1[i * 8 + 8*N*trans];
+			      ch_2[i] = s1[i * 8 + 1 + 8*N*trans];
+			      ch_3[i] = s1[i * 8 + 2 + 8*N*trans];
+			      ch_4[i] = s1[i * 8 + 3 + 8*N*trans];
+			      ch_5[i] = s1[i * 8 + 4 + 8*N*trans];
+			      ch_6[i] = s1[i * 8 + 5 + 8*N*trans];
+			      ch_7[i] = s1[i * 8 + 6 + 8*N*trans];
+			      ch_8[i] = s1[i * 8 + 7 + 8*N*trans];
 		    }
 		    
 		    set_matrix_row(chMat, 0 + trans*8, ch_1/Nor);
@@ -431,7 +433,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    set_matrix_row(chMat, 6 + trans*8, ch_7/Nor);
 		    set_matrix_row(chMat, 7 + trans*8, ch_8/Nor);
 	  }
-	  
 	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 	  {
 		    c1 = get_matrix_row(chMat, chNum);
@@ -567,6 +568,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    
 		    pos = 0;
 		    absoluteMaximum = max(averaged, pos);
+		    requiredAmplRel = requiredAmpl*absoluteMaximum;
+		    requiredRiseRel = requiredRise*absoluteMaximum;
 
 		    targetSignal = averaged;
 
@@ -579,9 +582,9 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      {
 					if (targetSignal[ia] > targetSignal[prevIndex])
 					{
-						  if (targetSignal[ia] - targetSignal[prevMin] > requiredAmpl)
+						  if (targetSignal[ia] - targetSignal[prevMin] > requiredAmplRel)
 						  {
-							     if ((targetSignal[ia] - targetSignal[prevMin])/(ia - prevMin) > requiredRise)
+							     if ((targetSignal[ia] - targetSignal[prevMin])/(ia - prevMin) > requiredRiseRel)
 							    {
 								      if (targetSignal[ia] > absoluteMaximum*requiredMaximumMult)
 								      {
@@ -604,7 +607,6 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    nextcycle:
 	  }
 	  
-	
 	  for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
 	  {
 		    cc1 = get_matrix_row(chMat, chNum);
@@ -686,7 +688,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 	  }
 	
-	  if (frameIndex == perFrame)
+	  if (frameIndex + 1 == perFrame)
 	  {
 		    maximums = signal(1,100,false);
 		    maximums = 0;
@@ -705,8 +707,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 					nextNextIndex = ia + 2;
 					currentScore=(hitMaximums[prevPrevIndex] + hitMaximums[nextNextIndex])/4
 							    + (hitMaximums[prevIndex] + hitMaximums[nextIndex])/2
-							    + hitMaximums[ia];
-							    
+							    + hitMaximums[ia];	    
 					if (currentScore >= scoreThreshold)
 					{
 						  scores[ia] = currentScore;
@@ -737,22 +738,21 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    // hitMaximums were collected during the entire frame. Now we reset these
 		    hitMaximums =0;
 
-		    print_line("Number of selected maximums ", totalFound);
+		    //print_line("Number of selected maximums ", totalFound);
 		    if (totalFound == 0) //nothing to set, use previous
 		    {
-			      if (frameIndex == perFrame)
+			      if (frameIndex2 > 0)
 			      {
-					if (frameIndex2 > 0)
-					{
-						  prefFrameIndex2 = frameIndex2 - 1;
-						  firstMaxDist[frameIndex2] = firstMaxDist[prefFrameIndex2];
-						  firstMaxAngle[frameIndex2] = firstMaxAngle[prefFrameIndex2];
-						  firstMaxVel[frameIndex2] = firstMaxVel[prefFrameIndex2];
-					}
+					prefFrameIndex2 = frameIndex2 - 1;
+					firstMaxDist[frameIndex2] = firstMaxDist[prefFrameIndex2];
+					firstMaxAngle[frameIndex2] = firstMaxAngle[prefFrameIndex2];
+					firstMaxVel[frameIndex2] = firstMaxVel[prefFrameIndex2];
 			      }
 		    }
 	  
 		    validTargetIndex = 0;
+		    //print_line("At sig number ", ii);
+		    moveSteps = moveSteps + 1;
 		    for (rInd = 0; rInd < totalFound; rInd = rInd + 1)
 		    {
 			      for (chNum = 0; chNum < numOfTrans*8; chNum = chNum + 1)
@@ -936,7 +936,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 					//print_line("1st object detected at r=", maximums[0], ", v=", maximumVelIndex-dopplerPadding/2+1, ", az= ", maximumAngleIndex - padAngleTo/2+1);
 					if (fullPrint)
 					{
-						  print_line("1st object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+						  //print_line("1st object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+						  print_line(moveSteps, ", 1, ", distance, ", ", velocity, ", ", angle, ",");
 					}
 					firstMaxDist[frameIndex2] = distance;
 					firstMaxAngle[frameIndex2] = angle;
@@ -987,14 +988,15 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  curY = distance*cos(angle*pi()/180);
 						  if (fullPrint)
 						  {
-							    if (moreThan3rd)
-							    {
-								      print_line(rInd+1, "th object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
-							    }
-							    else
-							    {
-								      print_line(numberStr, " object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
-							    }
+							    //if (moreThan3rd)
+							    //{
+								      //print_line(rInd+1, "th object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    //}
+							    //else
+							    //{
+								      //print_line(numberStr, " object detected at r=", distance, "(", currentMaxPosition, "), v=", velocity, ", az= ", angle, " or x=", curX, ", y=", curY);
+							    //}
+							    print_line(moveSteps, ", ", rInd+1, ", ", distance, ", ", velocity, ", ", angle, ",");
 						  }
 						  
 						  prevTargetAngle = angle;
@@ -1176,7 +1178,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    
 		    hitMaximumsBreath =0; //reset for next breathSkips number of  signals
 		    
-		    print_line("Number of selected candidate points for the breath detection ", totalFoundBreath);
+		    //print_line("Number of selected candidate points for the breath detection ", totalFoundBreath);
 	  
 		    if (totalFoundBreath == 0) //nothing to set, use previous
 		    {
@@ -1661,7 +1663,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  {
 							    outSig[indexOfIndex] = validTargetIndex;
 							    outSig[indexOfRange] = distance;
-							    outSig[indexOfVelocity] = velocity;
+							    outSig[indexOfVelocity] = 0;
 							    outSig[indexOfAngle] = angle;
 							    validTargetIndex = validTargetIndex + 1;
 						  }
@@ -1707,7 +1709,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 						  {
 							    outSig[indexOfIndex] = validTargetIndex;
 							    outSig[indexOfRange] = distance;
-							    outSig[indexOfVelocity] = velocity;
+							    outSig[indexOfVelocity] = 0;
 							    outSig[indexOfAngle] = angle;
 							    validTargetIndex = validTargetIndex + 1;
 						  }
@@ -1739,7 +1741,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  }
 	  
 	  //The display is only updated after entire frame is collected
-	  if (frameIndex == perFrame)
+	  if (frameIndex + 1 == perFrame)
 	  {
 		    if (showBreathAngle)
 		    {
@@ -1765,5 +1767,5 @@ For(ii=N1;ii<N2;ii=ii+1)
 	  }
 	  //sleep(frameDuration);
 	  spent = time() - t1;
-	  print_line("Time on a single pass ", spent);
+	  //print_line("Time on a single pass ", spent);
 }
