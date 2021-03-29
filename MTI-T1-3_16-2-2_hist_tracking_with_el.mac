@@ -54,6 +54,68 @@ TX_pos[1] = 0; // TX 2
 TX_pos[2] = 3; // TX 3
 Tx_pos[3] = 2; // TX 4
 
+//Indices 0 to 2 are considered valid azimuth indices, we could have a set of txes so that there is no 0 azimuth position
+//We can't just shift all values untill the least is 0 because that would corrupt elevation calculation
+leastAzTx = 3;
+TxAz = 0;
+TxEl = 0;
+TX_posEl = signal(1, 2, false);
+TX_posEl = 0;
+hasFirstTx = false;
+for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
+{
+	  if ((TX_pos[txIndex] >= 0) and (Tx_pos[txIndex] < leastAzTx))
+	  {
+		    leastAzTx = Tx_pos[txIndex];
+	  }
+	  if ((TX_pos[txIndex] >= 0) and (Tx_pos[txIndex] < 3))
+	  {
+		    TxAz = TxAz + 1;
+	  }
+	  if (TX_pos[txIndex] == 1)
+	  {
+		    hasFirstTx = true;
+	  }
+}
+
+if (hasFirstTx)
+{
+	  TxEl = 1;
+	  TX_posEl[0] = 1; // 2nd azimuth location
+	  for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
+	  {
+
+		    if (TX_pos[txIndex] == 3)
+		    {
+			      TxEl = 2;
+			      TX_posEl[1] = 3; // A special case
+		    }
+	  }
+}
+else
+{
+	  //Any and the only t can be used for the elevation
+	  TxEl = 1;
+	  for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
+	  {
+		    if (TX_pos[txIndex] >= 0)
+		    {
+			      TX_posEl[0] = TX_pos[txIndex]; // The last one updated will be used for elevation
+		    }
+	  }
+}
+
+If (TxAz==0)
+{
+	  print_line("Won't run. At least one of the azimuth txes should be specified in TX_pos");
+	  goto justend;
+}    
+
+out(TxAz);
+out(TxEl);
+out(leastAzTx);
+
+
 //Device tuning parameters
 startDelay=0.35;               // m
 Ch =1;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
@@ -120,45 +182,7 @@ dsinEl = c/(freq0*Elpadding*d);
 
 //kVmsa=6/(perFrame*(perFrame-1)*(2*perFrame-1)); //for mean-scuare approximated velocity calculation
 MaximumsDelay=ceil(startDelay/distperpoint);        //Start delay number;
-TxAz=1;
-TxEl = 1;
-If (Az==0)
-{
-	  TxAz=0;
-	  print_line("Won't run. Both Az and El should be enabled");
-	  goto justend;
-}    
-else 
-{
-	  if (TxNum==3) 
-	  {
-		    TxAz=2;
-	  }
-	  else
-	  {
-		    if (TxNum==4)
-		    {
-			      TxAz=3;
-		    }
-	  }
-}        
-If (El==0)
-{
-	  TxEl=0;
-	  print_line("Won't run. Both Az and El should be enabled");
-	  goto justend;
-}
-else
-{
-	  if (TxNum > 1)
-	  {
-		    TxEl=2;
-	  }
-}
 
-out(TxAz);
-out(TxEl);
- 
 //Variables      											
 // Don't used in this macros
 //perBreathFrame = 64;											
@@ -230,13 +254,10 @@ PadK=dopplerPadding/perFrame; // PadK=8
 I8=signal(PadK,PadK,false);                                                                   
 
 // Here matrices only need to hold signals for the 1st tx										
-chMat=matrix(Nch, N); // matrix to hold normalized signals   											
-prevChMat=matrix(Nch, N); 											
+chMat=matrix(Nch * TxNum, N); // matrix to hold normalized signals   											
+prevChMat=matrix(Nch * TxNum, N); 											
 prevChMat=0;  											
-difMat=matrix(Nch, N);
-
-// The difference for the remaining tx
-difMatOthers=matrix(Nch, N); 
+difMat=matrix(Nch * TxNum, N);
                                                           																						
 hitMaximums=signal(Tn,pointsToView,false);	
 scoreMaximums=hitMaximums;										
@@ -348,8 +369,8 @@ stopwallend:
 	  ie = ie + 1;
 	  																	
 	  hitMaximums =0;	
-	  hitTag=hitMaximums;																					
-	  difMat=chMat-prevChMat;
+	  hitTag=hitMaximums;
+	  difMat=chMat-prevChMat; //There are only valid changes for TX_pos[0]
 	  prevChMat=chMat;
 																				
 	  for (chNum = 0; chNum < Nch; chNum = chNum + 1)											
@@ -362,23 +383,9 @@ stopwallend:
 		    spectr_1=fft(sigZP_1)/T;  //Range FFT                      
 		    set_window(spectr_1,pointsToView*dT,pointsToView);
 		    
-		    // This is always 1st tx
-		    set_matrix_row(phaseMat,chNum+RxAz,phase(spectr_1));
-		    if (chNum == 5) //all the rx for elevation
+		    if (ie == perFrame - 1) //Store signals for the calculation of phases only during the last measurements
 		    {
-			      set_matrix_row(phaseMat,RxAz*TxAz,phase(spectr_1)); //Starting to fill the phaseMat rows after all azimuth rows
-		    }
-		    if (chNum == 2) //all the rx for elevation
-		    {
-			      set_matrix_row(phaseMat,RxAz*TxAz + 1, phase(spectr_1)); //Starting to fill the phaseMat rows after all azimuth rows
-		    }
-		    if (chNum == 6) //all the rx for elevation
-		    {
-			      set_matrix_row(phaseMat,RxAz*TxAz + 2, phase(spectr_1)); //Starting to fill the phaseMat rows after all azimuth rows
-		    }
-		    if (chNum == 7) //all the rx for elevation
-		    {
-			      set_matrix_row(phaseMat,RxAz*TxAz + 3, phase(spectr_1)); //Starting to fill the phaseMat rows after all azimuth rows
+			      set_matrix_row(phaseMat, TX_pos[0]*Nch + chNum,phase(spectr_1)); // Store where the 1st tx (by the switching order) points
 		    }
 
 		    //spectr=fft(sigZP)/T; 	                                              //										
@@ -495,13 +502,13 @@ stopwallend:
 		    if (TxNum > 1)
 		    {
 			      // Now there are (TxNum - 1)*2 signals left before the next 16 cycle
-			      for (Tx_i = 0; Tx_i < TxNum-1; Tx_i = Tx_i + 1)
+			      for (Tx_i = 0; Tx_i < TxNum-1; Tx_i = Tx_i + 1) //tx switch
 			      {
 					// Tx_i+1 because we are working with 2nd and above tx
 					//print_line("Getting the signal from array ", ii + 2 * Tx_i+1);
-					s1 = get_matrix_row(ss1, ii + 2 * Tx_i+1) / Nor;
+					s1 = get_matrix_row(ss1, ii + 2 * Tx_i+1) / Nor; //acquisition
 					
-					// Can't use difMat, chMat orprevChMat because it would be corrupted or the 1st tx
+					// Some processing
 					for (i = 0; i < N; i = i + 1)
 					{
 						  ch_1Prev[i] = s1[i * Nch + 0];
@@ -513,8 +520,8 @@ stopwallend:
 						  ch_7Prev[i] = s1[i * Nch + 6];
 						  ch_8Prev[i] = s1[i * Nch + 7];
 					}
-					//print_line("Getting the signal from array ", ii + 2 * Tx_i + 2);
-					s1 = get_matrix_row(ss1, ii + 2 * Tx_i + 2) / Nor;
+					
+					s1 = get_matrix_row(ss1, ii + 2 * Tx_i + 2) / Nor; //acquisition
 					for (i = 0; i < N; i = i + 1)
 					{
 						  ch_1[i] = s1[i * Nch + 0];
@@ -526,71 +533,28 @@ stopwallend:
 						  ch_7[i] = s1[i * Nch + 6];
 						  ch_8[i] = s1[i * Nch + 7];
 					}
-					set_matrix_row(difMatOthers, 0, ch_1 - ch_1Prev);
-					set_matrix_row(difMatOthers, 1, ch_2 - ch_2Prev);
-					set_matrix_row(difMatOthers, 2, ch_3 - ch_3Prev);
-					set_matrix_row(difMatOthers, 3, ch_4 - ch_4Prev);
-					set_matrix_row(difMatOthers, 4, ch_5 - ch_5Prev);
-					set_matrix_row(difMatOthers, 5, ch_6 - ch_6Prev);
-					set_matrix_row(difMatOthers, 6, ch_7 - ch_7Prev);
-					set_matrix_row(difMatOthers, 7, ch_8 - ch_8Prev);
 					
-					if (Tx_i == 0) // The 2nd transmitting
-					{
-						  // Probably different than phaseMat structure should be used for the elevation
-						  for (chNum = 0; chNum < RxAz; chNum = ChNum + 1)
-						  {
-							    cc1=get_matrix_row(difMatOthers, chNum);	
-																							    
-							    SigZP_1=0; 								
-							    Insert(cc1*W,0,N-1,SigZP_1,0);	
-												
-							    spectr_1=fft(sigZP_1)/T;  //Range FFT                      
-							    set_window(spectr_1,pointsToView*dT,pointsToView);
-							    
-							    // This is always 2nd tx
-							    set_matrix_row(phaseMat, chNum, phase(spectr_1));
-						  }
-					}
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch, ch_1 - ch_1Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 1, ch_2 - ch_2Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 2, ch_3 - ch_3Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 3, ch_4 - ch_4Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 4, ch_5 - ch_5Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 5, ch_6 - ch_6Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 6, ch_7 - ch_7Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 7, ch_8 - ch_8Prev);
 					
-					if (Tx_i == 1) // The 3rd transmitting only elevations
+					for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 					{
-						  // Different order of rx channels so has to be defined like this
-						  channelsNums = signal(1, RxEl, false);
-						  channelsNums[0] = 5;
-						  channelsNums[1] = 2;
-						  channelsNums[2] = 6;
-						  channelsNums[3] = 7;
-						  for (chNum = 0; chNum < RxEl; chNum = ChNum + 1)
-						  {
-							    cc1=get_matrix_row(difMatOthers, channelsNums[chNum]);	
-																							    
-							    SigZP_1=0; 								
-							    Insert(cc1*W,0,N-1,SigZP_1,0);	
-												
-							    spectr_1=fft(sigZP_1)/T;  //Range FFT                      
-							    set_window(spectr_1,pointsToView*dT,pointsToView);
-							    
-							    set_matrix_row(phaseMat, TxAz*RxAz + RxEl + chNum, phase(spectr_1)); //RxEl elements already filled from first tx
-						  }
-					}
-					
-					if (Tx_i == 2) // The 4th transmitting
-					{
-						  // Probably different than phaseMat structure should be used for the elevation
-						  for (chNum = 0; chNum < RxAz; chNum = ChNum + 1)
-						  {
-							    cc1=get_matrix_row(difMatOthers, chNum);	
-																							    
-							    SigZP_1=0; 								
-							    Insert(cc1*W,0,N-1,SigZP_1,0);	
-												
-							    spectr_1=fft(sigZP_1)/T;  //Range FFT                      
-							    set_window(spectr_1,pointsToView*dT,pointsToView);
-							    
-							    // This is always 4th tx
-							    set_matrix_row(phaseMat, 2*RxAz + chNum, phase(spectr_1));
-						  }
+						  cc1=get_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + chNum);	
+																						  
+						  SigZP_1=0; 								
+						  Insert(cc1*W,0,N-1,SigZP_1,0);	
+										      
+						  spectr_1=fft(sigZP_1)/T;  //Range FFT                      
+						  set_window(spectr_1,pointsToView*dT,pointsToView);
+						  
+						  //Should not corrupt TX_pos[0] rows
+						  set_matrix_row(phaseMat, TX_pos[Tx_i + 1]*Nch + chNum, phase(spectr_1));
 					}
 			      }
 		    }
@@ -683,8 +647,13 @@ stopwallend:
 			      //Print_line("TagNo=",it+1," R=",R," m"," Vmag=",Vmag," m/s");
 				     
 			      phaseTag1=get_matrix_row(phaseMatT,rangeNum);
-					  
-			      insert(phaseTag1,0,RxAz*TxAz-1,phAz,0);  
+			      
+			      //Rows should be in the correct order by now
+			      //Should store from 0th element always
+			      for (txAzCurrent = leastAzTx; txAzCurrent < leastAzTx + TxAz; txAzCurrent = txAzCurrent + 1)
+			      {
+					insert(phaseTag1, RxAz*(txAzCurrent - leastAzTx), RxAz*(txAzCurrent - leastAzTx + 1) - 1 , phAz, 0);
+			      }
 			      //r2=phAz;
 			      set_label(phAz,Azpadding,"v","m/s)");
 			      //if (it == 0)
@@ -715,19 +684,21 @@ stopwallend:
 			      histEntryAz[rangeNum - 1] = AzAngle;
 			      histEntryAz[rangeNum + 1] = AzAngle;
 
-			      insert(phaseTag1,RxAz*TxAz,RxAz*TxAz + RxEl*TxEl-1,phEl,0);
-			      //PhEl[0]=phaseTag1[5];
-			      //PhEl[1]=phaseTag1[2];
-			      //PhEl[2]=phaseTag1[6];
-			      //PhEl[3]=phaseTag1[7];
-			      //if (TxEl > 1)
-			      //{
-					//PhEl[4]=phaseTag1[21];//5+16
-					//PhEl[5]=phaseTag1[18];//2+16
-					//PhEl[6]=phaseTag1[22];//6+16
-					//PhEl[7]=phaseTag1[23];//7+16
-			      //}
+			      //Any can be used for the elevation but TxEl will be 1 if it is not the 1st tx
+			      phEl[0] = phaseTag1[TX_posEl[0] * Nch + 5];
+			      phEl[1] = phaseTag1[TX_posEl[0] * Nch + 2];
+			      phEl[2] = phaseTag1[TX_posEl[0] * Nch + 6];
+			      phEl[3] = phaseTag1[TX_posEl[0] * Nch + 7];
 
+			      if (TxEl > 1)
+			      {
+					//No other tx antenna except 3rd can be used for the second part of elevation
+					phEl[4] = phaseTag1[TX_posEl[1] * Nch + 5];
+					phEl[5] = phaseTag1[TX_posEl[1] * Nch + 2];
+					phEl[6] = phaseTag1[TX_posEl[1] * Nch + 6];
+					phEl[7] = phaseTag1[TX_posEl[1] * Nch + 7];
+			      }
+			      
 			      //r1=phEl;
 			      set_label(phEl,Elpadding,"v","m/s)");
 			      El16=fft(WHel*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
