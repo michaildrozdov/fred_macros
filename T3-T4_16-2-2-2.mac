@@ -1,0 +1,609 @@
+//Video_Dif_Ch_Av15_Angle _MTI-T1-3 
+clear_variables();
+
+//Parameteres from hardware                                   
+Nch = 8;                    // Number of Rx
+N = 1024;                  // Nuber of input points in each channel
+c = 0.3;                    // Light velocity, m/n
+freq0 = 3.1;               // Start frequency, GHz
+freqMax = 3.6;           // Stop frecuency, GHz
+d = 0.061;                 // MIMO array step, m
+RxAz = 5;                  //Number of Rx for Az
+RxEl = 4;                    //Number of Rx for El
+
+//Parameteres from designer
+T = 10;                      // Chirp duration, m
+P = 1;                        // Chirp pause duration, m
+Mn = 12;                    // Range padding window power
+Alfa = 0.1;                  // Averaging filter coefficient
+chirpsPerFrame = 16;            // Number of chirps in frame for velosity calculation
+scoreThreshold = 4;      // of channels spectrum maksimums positions  intersection
+TagscoreThreshold =7;  // of chirps avereged MTI specbitsrums intersections in frame
+dopplerPadding = 128;   // doppler padding window number
+AzPadding = 128;	         // azimuth angle padding window number
+ElPadding = 128;	         // elevation angle padding window number
+Nor=2^15;	                 // Signal amplitude nor
+NoiseLevel = 0.25;        // FaLse maximums level
+dMinLevel = 0.2;          // FaLse adjacent minimum level
+MinRise = 0.01;             // FaLse rise level
+
+//GUI paramete
+Range = 10;                  // m
+Az = 1;                   // To measure Azimuth   (1,0)
+El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
+TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
+throughWall = 1;
+
+// Set no-existant antennas to -1
+TX_pos = signal(1, TxNum, false);
+TX_pos[0] = 1; // TX 1 
+TX_pos[1] = 0; // TX 2
+TX_pos[2] = 3; // TX 3
+Tx_pos[3] = 2; // TX 4
+//Device tuning parameter
+startDelay=0.35;               // m
+
+//Calculated parameters 
+wallPoint = 0;
+Tc =T+P;                       // Chirp period, m
+Tf = Tc*chirpsPerFrame/1000;   // Frame period, 
+Nn = pow(2,Mn);           // Padding window number
+dT = T/N;                    // Time step
+Tn = dT*Nn;                // Padding window duration, m
+B = freqMax - freq0;      // Bandwidth
+slope = B/(T/1000);       //0.5 GHz/10 m
+deltaf = 1/(T/1000);      //Hz,   original IF delta
+distPerPoint = deltaf*c/2/slope*N/Nn; //m
+pointsToView = ceil(Range/distPerPoint)+2;
+totalDistance = distPerPoint*(N/2+1);
+lambda0 = c/freq0;
+domega = 2*pi()/dopplerPadding;
+dvel = lambda0*domega/4/pi()/Tc*1000;
+dsinAz =c / (freq0*AzPadding*d);
+dsinEl = c / (freq0*ElPadding*d);
+if (Az==0) {TxAz=0;}    
+else 
+{ if (TxNum==3) {TxAz=2;} else{TxAz=3;}}        
+if (El==0) {TxEl=0;} else{TxEl=2;}
+
+maximumsDelay=ceil(startDelay/distperpoint);        //Start delay number;
+
+
+out(deltaf);
+out(distPerPoint);
+out(pointsToView);
+out(paddingRate);
+out(breathingWindow);
+out(dvel);
+
+ch_1 = signal(T,N,false);   // Channel 1 signal
+ch_1=0;
+ch_2 = ch_1;
+SigZP_1=signal(Tn,Nn,false); //Zerrow padded signal of Cjhannel 1
+
+phAz=signal(AzPadding,AzPadding,false); //Zerow padded phase for Azimuth angle FFT
+PhAz=0;
+phEl=signal(AzPadding,AzPadding,false); //Zerow padded phase for Azimuth angle FFT
+PhEl=0;         
+
+s1=signal(T,N*Nch,false);
+
+pos=0;
+posAz=0;
+posEl=0;
+
+averagedMat = matrix(Nch,pointsToView);
+averagedMat = 0;
+averaged = signal(Tn,pointsToView,false);
+averaged=0;
+r1 = averaged;
+set_label(r1, pointsToView / Tn, "kHz", "mV");
+r2 = r1;
+r3 = r1;
+r4 = r1;
+r5 = r1;
+r6 = r1;
+r7 = r1;
+r8 = r1;
+mean_sig = r1;
+averaged_mean_sig = r1;
+
+hitTag = signal(dT*(pointsToView),pointsToView,false);
+hitTag=0;                                                               
+hitM=hitTag;
+hitMM = matrix(TxNum, pointsToView);
+
+chMat=matrix(Nch * TxNum, N); // matrix to hold normalized signals   
+prevChMat=matrix(Nch * TxNum, N); 
+prevChMat=0;
+difMat=matrix(Nch * TxNum, N);                                                             
+
+chMat1 = matrix(Nch, N);
+prevChMat1 = chMat1;
+prevChMat1 = 0;
+difMat1 = matrix(Nch, N);
+
+hitMaximums=signal(Tn,pointsToView,false);
+scoreMaximums=hitMaximums;
+Sr3 = hitMaximums;
+Sr15 = hitMaximums;
+SMM = matrix(TxNum, pointsToView);
+
+phaseMat = matrix(Nch * TxNum, pointsToView); phaseMat=0;
+phaseMatT = matrix(pointsToView,Nch * TxNum);
+
+
+// Used to read each 8192 points
+Txi_sig = signal(Tn, N * Nch, false);
+phaseCh = signal(Tn, Nch * TxNum, false);
+phaseChPart = signal(Tn, Nch * TxNum, false);
+phaseChPart = 0;
+
+phXMatrix = matrix(chirpsPerFrame * Nch, pointsToView);
+phXMatrixT = matrix(pointsToView, chirpsPerFrame * Nch);
+MagMatrix = matrix(Nch * TxNum, pointsToView);
+MagMatrixT = matrix(pointsToView, Nch * TxNum);
+
+MagMatrix1 = matrix(Nch, pointsToView);
+MagMatrix1T = matrix(pointsToView, Nch);
+
+Vmags=signal(Tn, Nch,false);
+// Max possible number of angles = n. of antennas
+AzAngles = signal(Tn, TxNum, false);
+ElAngles = signal(Tn, TxNum, false);
+// We'll find average value for this
+mainMaxM = matrix(Nch * TxNum, chirpsPerFrame);
+spectrM = matrix(Nch * TxNum, Nn / 2);
+// Matthew's code end
+
+//Signal matrix loading from disk
+path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
+
+
+num=sig_get_count(path_t);
+N1=0; 
+N2=num;
+
+out(num);
+ss1=matrix(num,N*Nch);
+s1=signal(num,N*Nch, false);
+
+for(ii=0;ii<num;ii=ii+1)
+{
+		s1 = sig_read(path_t,ii);
+		set_matrix_row(ss1,ii,s1);
+}
+
+//Window function for range FFT
+pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
+W=sig_read(pathW,0); // Kaizer window
+
+//Window function for Doppler FFT
+WH=signal(dopplerPadding*Tc,dopplerPadding,false);   //Hamming Window for Doppler FFT
+WH=0;
+for(i=0;i<chirpsPerFrame;i=i+1)
+{ WH[i]=0.54-0.46*cos(2*pi()*i/chirpsPerFrame); }
+//r13=WH;
+
+WHel=signal(ElPadding*TxEl,ElPadding,false);   //Hamming Window for elevation angle FFT
+WHel=0;
+for(i=0;i<RxEl;i=i+1)
+{ WHel[i]=0.54-0.46*cos(2*pi()*i/Rxel); } // Hamming Window for azimuth angle FFT
+//r13=WHel;
+
+WHaz=signal(AzPadding*TxAz,AzPadding,false);   //Hamming Window
+WHaz=0;
+for(i=0;i<RxAz;i=i+1)
+{ WHaz[i]=0.54-0.46*cos(2*pi()*i/RxAz); }
+//13=WHaz;
+pause();
+
+t1=time();
+ie = -1;
+for(ii=N1;ii<N2;ii=ii+1)
+{
+	s1 = get_matrix_row(ss1, ii) / Nor;
+
+	for (chNum = 0; chNum < Nch; chNum = chNum + 1)
+	{
+		for (i = 0; i < N; i = i + 1)
+		{
+			ch_1[i] = s1[i * Nch + chNum];
+		}
+		set_matrix_row(chMat1, chNum, ch_1);
+	}
+
+	hitMaximums = 0;
+	hitTag = hitMaximums;
+
+	difMat1 = chMat1 - prevChMat1;
+	prevChMat1 = chMat1;
+//	print_line(ii);
+
+
+
+	ie = ie + 1;
+	if (ie == 0) {
+		// Finding the wall
+		if (ii == N1)
+		{
+			if (throughWall == 1)
+			{
+				mean_sig = 0;
+				// Combining all signals
+				for (chNum = 0; chNum < Nch; chNum = chNum + 1)
+				{
+					cc1 = get_matrix_row(chMat1, chNum);
+					SigZP_1 = 0;
+					Insert(cc1 * W, 0, N - 1, SigZP_1, 0);
+
+					spectr_1 = fft(SigZP_1) / T; // Range FFT
+					set_window(spectr_1, pointsToView * dT, pointsToView);
+					set_label(spectr_1, pointsToView / Tn, "kHz", "mV");
+					mean_sig = mean_sig + mag(spectr_1);
+				}
+
+				// The maximum will be 1
+//				mean_sig = mean_sig / max(mean_sig, pos);
+				r11 = mean_sig;
+				for (i = 1; i < pointsToView - 1; i = i + 1)
+				{
+					if (mean_sig[i + 1] < mean_sig[i])
+					{
+						// we found our maximum
+						wallPoint = i;
+						print_line("Delay in meters: ", wallPoint * distPerPoint);
+						goto early2;
+					}
+				}
+				early2:
+
+				for (i = wallPoint; i < pointsToView - 1; i = i + 1)
+				{
+					if (mean_sig[i + 1] > mean_sig[i])
+					{
+						maximumsDelay = i;
+						print_line("Maximums Delay: ", maximumsDelay);
+						goto early5;
+					}
+				}
+				early5:
+				pause();
+			}
+
+		}
+		goto early1;
+	}
+
+	averaged_mean_sig = 0;
+	mean_sig = 0;
+	for(chNum = 0; chNum < Nch; chNum = chNum + 1)
+	{
+		cc1 = get_matrix_row(difMat1, chNum);
+		SigZP_1 = 0;
+		Insert(cc1 * W, 0, N - 1, SigZP_1, 0);
+
+		spectr_1 = fft(SigZP_1) / T; // Range FFT
+
+		set_window(spectr_1, pointsToView * dT, pointsToView);
+		set_label(spectr_1, pointsToView / Tn, "kHz", "mV");
+		
+		spectr_1phase = phase(spectr_1);
+		set_matrix_row(phXMatrix, ie * Nch + chNum, spectr_1phase);
+
+		currentRangeSig = mag(spectr_1);
+		mean_sig = mean_sig + currentRangeSig;
+		// idk if it will ever be used
+		set_matrix_row(MagMatrix1, ie * Nch + chNum, currentRangeSig);
+
+//		if (ie == 1)
+//		{
+//			averaged = 0;
+////			averaged = currentRangeSig;
+//		}
+//		else
+//		{
+			averaged = get_matrix_row(averagedMat, chNum);
+//		}
+
+		averaged = (1 - Alfa) * averaged + Alfa * currentRangeSig;
+		set_matrix_row(averagedMat, chNum, averaged);
+		averaged_mean_sig = averaged_mean_sig + averaged;
+
+		targetSignal = averaged;
+
+		// ---------- FINDING MAXIMUMS ---------
+		// {{{
+		prevMin = 0;
+		// Finding the biggest maximum, I guess
+		mainMax = max(targetSignal, pos);
+
+		// Parameters for finding other maximums
+		requiredLevel = mainMax * NoiseLevel;
+		requiredAmpl = mainMax * dMinLevel;
+		requiredRise = mainMax * minRise;
+
+		for (ia = 1; ia < pointsToView - 2; ia = ia + 1)
+		{
+			nextIndex = ia + 1;
+			prevIndex = ia - 1;
+
+			if(targetSignal[ia] > targetSignal[nextIndex])
+			{
+				if (targetSignal[ia] > targetSignal[prevIndex])
+				{
+					if (targetSignal[ia] - targetSignal[prevMin] > requiredAmpl)
+					{
+						if ((targetSignal[ia] - targetSignal[prevMin]) / (ia - prevMin) > requiredRise)
+						{
+							if (targetSignal[ia] > requiredLevel)
+							{
+								hitMaximums[ia] = hitMaximums[ia] + 1;
+							}
+
+						}
+					}
+				}
+			}
+			if (targetSignal[ia] < targetSignal[nextIndex])
+			{
+				if (targetSignal[ia] < targetSignal[prevIndex])
+				{
+					prevMin = ia;
+				}
+			}
+		}
+		// }}}
+		// ---------- FINDING MAXIMUMS END ---------
+//		r12 = hitMaximums;
+	}
+	mean_sig = mean_sig / Nch;
+//	averaged_mean_sig = get_matrix_row(averagedMat, 3);
+//	r10 = averaged_mean_sig / max(averaged_mean_sig, pos);
+	r10 = averaged_mean_sig / Nch;
+//	r10 = get_matrix_row(averagedMat, 7);
+	r11 = mean_sig;
+//	print_line("ie == ", ie);
+//	print_line("ii = ", ii);
+//	pause();
+//	print_line("ii == ", ii);
+
+	// This has to go before finding maximums
+	// Because we need previous scoreMaximums
+
+
+	TagN = 0;
+	TagU = 0;
+
+
+	for (point = MaximumsDelay; point < pointsToView; point = point + 1)
+	{
+		if (hitMaximums[point] < 2) { 
+			goto early3; 
+		}
+
+		// Weighted score
+		currentScore = (hitMaximums[point -2] + hitMaximums[point + 2]) / 4;
+		currentScore = currentScore + (hitMaximums[point -1] + hitMaximums[point + 1]) / 2;
+		currentScore = currentScore + hitMaximums[point];
+
+		if (currentScore >= scoreThreshold)
+		{
+			scoreMaximums[TagN] = point;
+//			print(point, "  ");
+			TagN = TagN + 1;
+		}
+
+		early3:
+	}
+//	print_line("");
+
+	SM = scoreMaximums;
+	scoreMaximums = 0;
+	r12 = 0;
+
+	for (target = 0; target < TagN; target = target + 1)
+	{
+		point = SM[target];
+
+		if (hitMaximums[point] > hitMaximums[point -1])
+		{
+			if(hitMaximums[point] >= hitMaximums[point + 1])
+			{
+				r12[point] = 1;
+				hitTag[point] = hitTag[point] + 1;
+				scoreMaximums[TagU] = point;
+
+				TagU = TagU + 1;
+			}
+		}
+	}
+
+	hitM = hitM + hitTag;
+	// hitTag holds the score, scoreMaximums holds the points
+
+	increm = 0;
+	if (ie == chirpsPerFrame - 1)
+	{
+		TagNs = 0;
+		TagUs = 0;
+		Sr3 = 0;
+		Sr15 = 0;
+
+		/// {{{
+		for (point = MaximumsDelay; point < pointsToView; point = point + 1)
+		{ 
+			if (hitM[point] == 0) { goto early4; }
+			
+			currentScore =hitM[point - 2] + hitM[point + 2];
+			currentScore = currentScore + hitM[point - 1] + hitM[point + 1];
+			currentScore = currentScore + hitM[point];
+			
+			if (currentScore >= TagscoreThreshold )
+			{
+				scoreMaximums[TagNs]=point;
+				TagNs=TagNs+1; 
+				Sr3[point]=currentScore;
+			}
+			early4:
+		}
+		
+		r12 = Sr3;
+		SM=scoreMaximums; 
+		scoreMaximums=0; 
+		
+		for(target=0; target<tagNs; target=target+1)
+		{
+			point=SM[target]; 
+			if (Sr3[point]>Sr3[point-1])
+			{
+				if(Sr3[point]>=Sr3[point+1])
+				{
+					Sr15[point]=1;
+
+					scoreMaximums[TagUs]=point;
+//					print_line("Found target ", target + 1, "  coordinate = ", point);
+					TagUs=TagUs+1;
+				}
+			}
+		}
+		/// }}}
+
+		// scoreMaximums [ target ] = point
+
+		ii = ii - 1;
+		for(sig_num = 0; sig_num < 2; sig_num = sig_num + 1)
+		{
+			for (Tx_i = 0; Tx_i < TxNum; Tx_i = Tx_i + 1)
+			{
+				s1 = get_matrix_row(ss1, ii + 2 * Tx_i + sig_num) / Nor;
+				increm = increm + 1;
+//				print_line("Reading signal ", ii + 2 * Tx_i + sig_num);
+
+				for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
+				{
+					for (i = 0; i < N; i = i + 1)
+					{
+						ch_1[i] = s1[i * Nch + chNum];
+					}
+//					print_line("ch", chNum, "   ch[0] = ", ch_1[0]);
+					set_matrix_row(chMat, Tx_i * Nch + chNum, ch_1);
+				}
+			}
+			difMat = chMat - prevChMat;
+			prevChMat = chMat;
+		}
+		// -1 because the loop increments the signal once more
+		ii = ii + increm - 1;
+
+		for (Tx_i = 0; Tx_i < TxNum; Tx_i = Tx_i + 1)
+		{
+			mean_sig = 0;
+			for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
+			{
+				cc1 = get_matrix_row(difMat, Tx_i * Nch + chNum);
+
+				SigZP_1 = 0;
+				// Multiplying by Kaizer and padding with zeroes
+				Insert(cc1 * W, 0, N - 1, SigZP_1, 0);
+
+				spectr_1 = fft(SigZP_1) / T; // Range FFT
+				set_label(spectr_1, pointsToView / Tn, "kHz", "mV");
+				set_window(spectr_1, pointsToView * dT, pointsToView);
+
+				spectr_1phase = phase(spectr_1);
+				set_matrix_row(phaseMat, Tx_i * Nch + chNum, spectr_1phase);
+				currentRangeSig = mag(spectr_1);
+				set_matrix_row(MagMatrix, Tx_i * Nch + chNum, currentRangeSig);
+				mean_sig = mean_sig + currentRangeSig;
+			}
+			mean_sig = mean_sig / Nch;
+
+		}
+
+		phaseMatT = transpose(phaseMat);
+
+		for (target = 0; target < TagUs; target = target + 1)
+		{
+			rangeNum = scoreMaximums[target];
+			//					print(rangeNum);
+			R = rangeNum * distPerPoint;
+			if (throughWall == 1)
+			{
+				R = R - wallPoint * distPerPoint;
+			}
+			else
+			{
+				R = R - startDelay;
+			}
+//			print(R, "  ");
+
+			phaseTag = get_matrix_row(phaseMatT, rangeNum);
+
+
+			insert(phaseTag, Tx_pos[1] * Nch, Tx_pos[1] * Nch + 4, phAz, 0);
+			insert(phaseTag, Tx_pos[0] * Nch, Tx_pos[0] * Nch + 4, phAz, 5);
+			// If there's TX4 at all
+			if (Tx_pos[3] != -1)
+			{
+				insert(phaseTag, Tx_pos[3] * Nch, Tx_pos[3] * Nch + 4, phAz, 10);
+			}
+
+			// Tx 2
+//			r15 = unwrap(phAz);
+
+			Az16 = fft(Whaz * (cos(phAz) + j() * sin(phAz)));
+			L16 = mag(Az16);
+			m16 = max(L16, posAz);
+
+			if (posAz > AzPadding / 2)
+			{
+				AzAngle = asin((posAz - AzPadding) * dsinAz) * 180 / pi();
+			}
+			else
+			{
+				AzAngle = asin(posAz * dsinAz) * 180 / pi();
+			}
+			//					print(AzAngle, "  ");
+
+			// Elevation time
+			phEl[0] = phaseTag[Tx_pos[0] * Nch + 5];
+			phEl[1] = phaseTag[Tx_pos[0] * Nch + 2];
+			phEl[2] = phaseTag[Tx_pos[0] * Nch + 6];
+			phEl[3] = phaseTag[Tx_pos[0] * Nch + 7];
+
+			phEl[4] = phaseTag[Tx_pos[2] * Nch + 5];
+			phEl[5] = phaseTag[Tx_pos[2] * Nch + 2];
+			phEl[6] = phaseTag[Tx_pos[2] * Nch + 6];
+			phEl[7] = phaseTag[Tx_pos[2] * Nch + 7];
+//			r14 = unwrap(phEl);
+
+			set_label(phEl,ElPadding,"v","m/s");
+			El16 = fft(Whel * (cos(phEl) + j() * sin(phEl)));
+			L16 = mag(El16);
+//			r14 = L16;
+			m16 = max(L16, posEl);
+
+			if (posEl > ElPadding / 2)
+			{
+				ElAngle = asin((posEl - ElPadding) * dsinEl) * 180 / pi();
+			}
+			else
+			{
+				ElAngle = asin(posEl * dsinEl) * 180 / pi();
+			}
+
+								print(ElAngle, "  ");
+		}
+		print_line("");
+
+		ie = -1;
+		hitM = 0;
+//		print_line("Frame's over");
+		pause();
+	}
+//	pause();
+
+	early1:
+}
+// vim:foldmethod=marker:
