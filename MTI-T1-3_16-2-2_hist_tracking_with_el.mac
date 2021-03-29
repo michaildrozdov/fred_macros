@@ -46,6 +46,14 @@ Range = 30;                  // m
 Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously        
 
+throughWall = 1;
+// Position of each TX in the array
+TX_pos = signal(1, TxNum, false);
+TX_pos[0] = 1; // TX 1 
+TX_pos[1] = 0; // TX 2
+TX_pos[2] = 3; // TX 3
+Tx_pos[3] = 2; // TX 4
+
 //Device tuning parameters
 startDelay=0.35;               // m
 Ch =1;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
@@ -203,6 +211,7 @@ averagedMat = matrix(Nch,pointsToView);
 averagedMat = 0;											
 averaged = signal(Tn,pointsToView,false);
 averaged=0;
+mean_sig = averaged;
 histogramMatAz = matrix(breathingHistSamples, pointsToView);
 histogramMatAz = -1000; //Invalid values
 histogramMatEl = matrix(breathingHistSamples, pointsToView);
@@ -281,12 +290,6 @@ t1=time();
 currentTime = 0;//used for tracker											
 For(ii=N1;ii<N2;ii=ii+1)											
 {
-	  if (ii == N1)
-	  {
-		    ie = -1;
-	  }
-	  ie = ie + 1;
-	  
 	  s1 = get_matrix_row(ss1, ii) / Nor;
 	  for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
 	  {
@@ -296,6 +299,53 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 		    set_matrix_row(chMat, chNum, ch_1);
 	  }
+	  
+	  if (ii == N1)
+	  {
+		ie = -1;
+
+		if (throughWall == 1)
+		{
+			mean_sig = 0;
+			// Combining all signals
+			for (chNum = 0; chNum < Nch; chNum = chNum + 1)
+			{
+				cc1 = get_matrix_row(chMat, chNum);
+				SigZP_1 = 0;
+				Insert(cc1 * W, 0, N - 1, SigZP_1, 0);
+
+				spectr_1 = fft(SigZP_1) / T; // Range FFT
+				set_window(spectr_1, pointsToView * dT, pointsToView);
+				mean_sig = mean_sig + mag(spectr_1);
+			}
+
+			// The maximum will be 1
+			mean_sig = mean_sig / max(mean_sig, pos);
+			for (i = 1; i < pointsToView - 1; i = i + 1)
+			{
+				if (mean_sig[i + 1] < mean_sig[i])
+				{
+					// we found our maximum
+					wallPoint = i;
+					print_line("Delay in meters: ", wallPoint * distPerPoint);
+					goto stopwallmax;
+				}
+			}
+stopwallmax:
+
+			for (i = wallPoint; i < pointsToView - 1; i = i + 1)
+			{
+				if (mean_sig[i + 1] > mean_sig[i])
+				{
+					MaximumsDelay = i;
+					goto stopwallend;
+				}
+			}
+stopwallend:
+			pause();
+		}
+	  }
+	  ie = ie + 1;
 	  																	
 	  hitMaximums =0;	
 	  hitTag=hitMaximums;																					
@@ -332,9 +382,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    }
 
 		    //spectr=fft(sigZP)/T; 	                                              //										
-		    currentRangeSig=mag(spectr_1); 
-		    if (ie>0) 											
-		    { averaged=get_matrix_row(averagedMat,chNum); } else { averaged = currentRangeSig; }										
+		    currentRangeSig=mag(spectr_1);
+		    averaged=get_matrix_row(averagedMat,chNum);
 		    averaged = (1-Alfa)*averaged+ Alfa* currentRangeSig;  // not rewriting averagedMat
 		    //r12 = averaged;
 		    set_matrix_row(averagedMat,chNum,averaged);		       											
@@ -602,6 +651,14 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      //Ph2=0;
 			      rangeNum=scoreMaximums[it];
 			      R=rangeNum*distperpoint;
+			      if (throughWall == 1)
+			      {
+					R = R - wallPoint * distPerPoint;
+			      }
+			      else
+			      {
+					R = R - startDelay;	
+			      }
 			      ph1Tag1=get_matrix_row(ph1MatrixT,rangeNum);
 			      //set_window(ph1Tag1,perFrame,128);
 			      set_label(ph1Tag1,128,"v","m/s)");                                           
