@@ -471,14 +471,25 @@ for(ii=N1;ii<N2;ii=ii+1)
 
 		// scoreMaximums [ target ] = point
 
-		ii = ii - 1;
-		for(sig_num = 0; sig_num < 2; sig_num = sig_num + 1)
+		// Appending data from first TX
+		for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 		{
-			for (Tx_i = 0; Tx_i < TxNum; Tx_i = Tx_i + 1)
+			spectr_1phase = get_matrix_row(phXMatrix, Nch * (chirpsPerFrame - 1) + chNum);
+			set_matrix_row(phaseMat, chNum, spectr_1phase);
+
+			currentRangeSig = get_matrix_row(MagMatrix1, chNum);
+			set_matrix_row(MagMatrix, chNum, currentRangeSig);
+
+		}
+
+		// Moving onto the 2-2-2 sequence
+		// Skipping 0th Tx_i
+		ii = ii + 1;
+		for (Tx_i = 1; Tx_i < TxNum; Tx_i = Tx_i + 1)
+		{
+			for (sig_num = 0; sig_num < 2; sig_num = sig_num + 1)
 			{
-				s1 = get_matrix_row(ss1, ii + 2 * Tx_i + sig_num) / Nor;
-				increm = increm + 1;
-//				print_line("Reading signal ", ii + 2 * Tx_i + sig_num);
+				s1 = get_matrix_row(ss1, ii) / Nor;
 
 				for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
 				{
@@ -486,17 +497,29 @@ for(ii=N1;ii<N2;ii=ii+1)
 					{
 						ch_1[i] = s1[i * Nch + chNum];
 					}
-//					print_line("ch", chNum, "   ch[0] = ", ch_1[0]);
-					set_matrix_row(chMat, Tx_i * Nch + chNum, ch_1);
-				}
-			}
-			difMat = chMat - prevChMat;
-			prevChMat = chMat;
-		}
-		// -1 because the loop increments the signal once more
-		ii = ii + increm - 1;
 
-		for (Tx_i = 0; Tx_i < TxNum; Tx_i = Tx_i + 1)
+
+					if (sig_num == 0)
+					{
+						set_matrix_row(prevChMat, Tx_i * Nch + chNum, ch_1);
+					}
+					else
+					{
+						set_matrix_row(chMat, Tx_i * Nch + chNum, ch_1);
+					}
+				}
+
+				ii = ii + 1;	
+			}
+		}
+
+		// Because the loop increases ii by 1 each time
+		ii = ii - 1;
+		difMat = chMat - prevChMat;
+
+		// We then proceed as expected
+		// but skipping Tx_i = 0
+		for (Tx_i = 1; Tx_i < TxNum; Tx_i = Tx_i + 1)
 		{
 			mean_sig = 0;
 			for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
@@ -600,7 +623,6 @@ for(ii=N1;ii<N2;ii=ii+1)
 		ie = -1;
 		hitM = 0;
 //		print_line("Frame's over");
-		pause();
 	}
 //	pause();
 
