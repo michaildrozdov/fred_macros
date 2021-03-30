@@ -654,7 +654,7 @@ stopwallend:
 			      //Should store from 0th element always
 			      for (txAzCurrent = leastAzTx; txAzCurrent < leastAzTx + TxAz; txAzCurrent = txAzCurrent + 1)
 			      {
-					insert(phaseTag1, RxAz*(txAzCurrent - leastAzTx), RxAz*(txAzCurrent - leastAzTx + 1) - 1 , phAz, 0);
+					insert(phaseTag1, RxAz*(txAzCurrent - leastAzTx), RxAz*(txAzCurrent - leastAzTx + 1) - 1 , phAz, (txAzCurrent - leastAzTx)*RxAz);
 			      }
 			      //r2=phAz;
 			      set_label(phAz,Azpadding,"v","m/s)");
