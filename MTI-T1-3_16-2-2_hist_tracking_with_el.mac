@@ -120,7 +120,7 @@ out(leastAzTx);
 
 //Device tuning parameters
 startDelay=0.35;               // m
-Ch =1;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
+Ch = 4;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
 
 //Tracking low level params
 maxTracks = 20;
