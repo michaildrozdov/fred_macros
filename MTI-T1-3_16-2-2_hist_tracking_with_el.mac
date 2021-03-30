@@ -2,8 +2,10 @@
 clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_389-T1-T2-T3-0_radom_udal_pribl.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_390-T1-T2-T3-0_radom_cross.sig";
-path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
-pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
+//path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
+path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
+//pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
+pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
 
 //Parameteres from hardware                                   										
 Nch = 8;                    // Number of Rx
@@ -502,11 +504,11 @@ stopwallend:
 		    if (TxNum > 1)
 		    {
 			      // Now there are (TxNum - 1)*2 signals left before the next 16 cycle
-			      for (Tx_i = 0; Tx_i < TxNum-1; Tx_i = Tx_i + 1) //tx switch
+			      for (Tx_i = 1; Tx_i < TxNum; Tx_i = Tx_i + 1) //tx switch
 			      {
 					// Tx_i+1 because we are working with 2nd and above tx
 					//print_line("Getting the signal from array ", ii + 2 * Tx_i+1);
-					s1 = get_matrix_row(ss1, ii + 2 * Tx_i+1) / Nor; //acquisition
+					s1 = get_matrix_row(ss1, ii + 2 * (Tx_i - 1) +1) / Nor; //acquisition
 					
 					// Some processing
 					for (i = 0; i < N; i = i + 1)
@@ -521,7 +523,7 @@ stopwallend:
 						  ch_8Prev[i] = s1[i * Nch + 7];
 					}
 					
-					s1 = get_matrix_row(ss1, ii + 2 * Tx_i + 2) / Nor; //acquisition
+					s1 = get_matrix_row(ss1, ii + 2 * (Tx_i - 1) + 2) / Nor; //acquisition
 					for (i = 0; i < N; i = i + 1)
 					{
 						  ch_1[i] = s1[i * Nch + 0];
@@ -534,18 +536,18 @@ stopwallend:
 						  ch_8[i] = s1[i * Nch + 7];
 					}
 					
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch, ch_1 - ch_1Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 1, ch_2 - ch_2Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 2, ch_3 - ch_3Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 3, ch_4 - ch_4Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 4, ch_5 - ch_5Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 5, ch_6 - ch_6Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 6, ch_7 - ch_7Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + 7, ch_8 - ch_8Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch, ch_1 - ch_1Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 1, ch_2 - ch_2Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 2, ch_3 - ch_3Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 3, ch_4 - ch_4Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 4, ch_5 - ch_5Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 5, ch_6 - ch_6Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 6, ch_7 - ch_7Prev);
+					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 7, ch_8 - ch_8Prev);
 					
 					for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 					{
-						  cc1=get_matrix_row(difMat, TX_pos[Tx_i + 1]*Nch + chNum);	
+						  cc1=get_matrix_row(difMat, TX_pos[Tx_i]*Nch + chNum);	
 																						  
 						  SigZP_1=0; 								
 						  Insert(cc1*W,0,N-1,SigZP_1,0);	
@@ -554,7 +556,7 @@ stopwallend:
 						  set_window(spectr_1,pointsToView*dT,pointsToView);
 						  
 						  //Should not corrupt TX_pos[0] rows
-						  set_matrix_row(phaseMat, TX_pos[Tx_i + 1]*Nch + chNum, phase(spectr_1));
+						  set_matrix_row(phaseMat, TX_pos[Tx_i]*Nch + chNum, phase(spectr_1));
 					}
 			      }
 		    }
