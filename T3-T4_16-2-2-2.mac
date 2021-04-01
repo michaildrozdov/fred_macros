@@ -1,6 +1,9 @@
 //Video_Dif_Ch_Av15_Angle _MTI-T1-3 
 clear_variables();
 
+//path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
+path_t = "C:\Users\matve\Desktop\Geozondas\04\test_394-T1-T2-T3-T4-0_radom_udal_pribl.sig";
+pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
 //Parameteres from hardware                                   
 Nch = 8;                    // Number of Rx
 N = 1024;                  // Nuber of input points in each channel
@@ -40,9 +43,9 @@ TX_pos[0] = 1; // TX 1
 TX_pos[1] = 0; // TX 2
 TX_pos[2] = 3; // TX 3
 Tx_pos[3] = 2; // TX 4
-//Device tuning parameter
+//Device tuning parameters
 startDelay=0.35;               // m
-
+Ch = 4;
 //Calculated parameters 
 wallPoint = 0;
 Tc =T+P;                       // Chirp period, m
@@ -81,6 +84,8 @@ ch_1=0;
 ch_2 = ch_1;
 SigZP_1=signal(Tn,Nn,false); //Zerrow padded signal of Cjhannel 1
 
+ph2=signal(dopplerPadding,dopplerPadding,false); //Zerow padded phase for Doppler FFT 
+ph2=0;
 phAz=signal(AzPadding,AzPadding,false); //Zerow padded phase for Azimuth angle FFT
 PhAz=0;
 phEl=signal(AzPadding,AzPadding,false); //Zerow padded phase for Azimuth angle FFT
@@ -129,6 +134,9 @@ Sr3 = hitMaximums;
 Sr15 = hitMaximums;
 SMM = matrix(TxNum, pointsToView);
 
+phaseMat1 = matrix(Nch, pointsToView); phaseMat1 = 0;
+phaseMat1T = matrix(pointsToView, Nch);
+
 phaseMat = matrix(Nch * TxNum, pointsToView); phaseMat=0;
 phaseMatT = matrix(pointsToView,Nch * TxNum);
 
@@ -139,8 +147,9 @@ phaseCh = signal(Tn, Nch * TxNum, false);
 phaseChPart = signal(Tn, Nch * TxNum, false);
 phaseChPart = 0;
 
-phXMatrix = matrix(chirpsPerFrame * Nch, pointsToView);
-phXMatrixT = matrix(pointsToView, chirpsPerFrame * Nch);
+ph1Matrix = matrix(chirpsPerFrame, pointsToView);
+ph1Tag1 = signal(chirpsPerFrame, chirpsPerFrame, false);
+ph1MatrixT = matrix(pointsToView, chirpsPerFrame);
 MagMatrix = matrix(Nch * TxNum, pointsToView);
 MagMatrixT = matrix(pointsToView, Nch * TxNum);
 
@@ -157,7 +166,6 @@ spectrM = matrix(Nch * TxNum, Nn / 2);
 // Matthew's code end
 
 //Signal matrix loading from disk
-path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
 
 
 num=sig_get_count(path_t);
@@ -175,7 +183,6 @@ for(ii=0;ii<num;ii=ii+1)
 }
 
 //Window function for range FFT
-pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
 W=sig_read(pathW,0); // Kaizer window
 
 //Window function for Doppler FFT
@@ -288,8 +295,18 @@ for(ii=N1;ii<N2;ii=ii+1)
 		set_window(spectr_1, pointsToView * dT, pointsToView);
 		set_label(spectr_1, pointsToView / Tn, "kHz", "mV");
 		
-		spectr_1phase = phase(spectr_1);
-		set_matrix_row(phXMatrix, ie * Nch + chNum, spectr_1phase);
+		// for velocity
+		if (chNum == Ch)
+		{
+			spectr_1phase = phase(spectr_1);
+			set_matrix_row(ph1Matrix, ie, spectr_1phase);
+		}
+
+		if (ie == chirpsPerFrame - 1)
+		{
+			spectr_1phase = phase(spectr_1);
+			set_matrix_row(phaseMat1, chNum, spectr_1phase);
+		}
 
 		currentRangeSig = mag(spectr_1);
 		mean_sig = mean_sig + currentRangeSig;
@@ -362,7 +379,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 //	r10 = averaged_mean_sig / max(averaged_mean_sig, pos);
 	r10 = averaged_mean_sig / Nch;
 //	r10 = get_matrix_row(averagedMat, 7);
-	r11 = mean_sig;
+//	r11 = mean_sig;
 //	print_line("ie == ", ie);
 //	print_line("ii = ", ii);
 //	pause();
@@ -400,7 +417,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 
 	SM = scoreMaximums;
 	scoreMaximums = 0;
-	r12 = 0;
+//	r12 = 0;
 
 	for (target = 0; target < TagN; target = target + 1)
 	{
@@ -410,7 +427,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 		{
 			if(hitMaximums[point] >= hitMaximums[point + 1])
 			{
-				r12[point] = 1;
+//				r12[point] = 1;
 				hitTag[point] = hitTag[point] + 1;
 				scoreMaximums[TagU] = point;
 
@@ -448,7 +465,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 			early4:
 		}
 		
-		r12 = Sr3;
+//		r12 = Sr3;
 		SM=scoreMaximums; 
 		scoreMaximums=0; 
 		
@@ -474,7 +491,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 		// Appending data from first TX
 		for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 		{
-			spectr_1phase = get_matrix_row(phXMatrix, Nch * (chirpsPerFrame - 1) + chNum);
+			spectr_1phase = get_matrix_row(phaseMat1, chNum);
 			set_matrix_row(phaseMat, chNum, spectr_1phase);
 
 			currentRangeSig = get_matrix_row(MagMatrix1, chNum);
@@ -545,6 +562,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 		}
 
 		phaseMatT = transpose(phaseMat);
+		ph1MatrixT = transpose(ph1Matrix);
 
 		for (target = 0; target < TagUs; target = target + 1)
 		{
@@ -561,9 +579,26 @@ for(ii=N1;ii<N2;ii=ii+1)
 			}
 //			print(R, "  ");
 
+			ph1Tag1 = get_matrix_row(ph1MatrixT, rangeNum);
+
+			set_label(ph1Tag1,128,"v","m/s)");                                           
+			insert(ph1Tag1, 0, chirpsPerFrame - 1, ph2, 0);
+			K11=fft(WH*(cos(ph2)+j()*sin(ph2))); // Doppler FFT on frame of Phazors
+			L11=mag(K11); 
+
+			m11=max(L11,pos);
+			
+			if(pos>dopplerPadding/2) 
+			{ 
+				Vmag=(pos-dopplerPadding)*dvel;  //Negative velocity (Approach)
+			}  
+			else 
+			{
+				Vmag=pos*dvel;   //Positive velocity (Away)
+			}                              
+//			print(Vmag, "  ");
+
 			phaseTag = get_matrix_row(phaseMatT, rangeNum);
-
-
 			insert(phaseTag, Tx_pos[1] * Nch, Tx_pos[1] * Nch + 4, phAz, 0);
 			insert(phaseTag, Tx_pos[0] * Nch, Tx_pos[0] * Nch + 4, phAz, 5);
 			// If there's TX4 at all
@@ -587,7 +622,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 			{
 				AzAngle = asin(posAz * dsinAz) * 180 / pi();
 			}
-			//					print(AzAngle, "  ");
+//			print(AzAngle, "  ");
 
 			// Elevation time
 			phEl[0] = phaseTag[Tx_pos[0] * Nch + 5];
@@ -616,7 +651,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 				ElAngle = asin(posEl * dsinEl) * 180 / pi();
 			}
 
-								print(ElAngle, "  ");
+			print(ElAngle, "  ");
 		}
 		print_line("");
 
