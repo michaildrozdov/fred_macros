@@ -2,10 +2,10 @@
 clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_389-T1-T2-T3-0_radom_udal_pribl.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_390-T1-T2-T3-0_radom_cross.sig";
-//path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
-path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
-//pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
-pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
+path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
+//path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
+pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
+//pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
 
 //Parameteres from hardware                                   										
 Nch = 8;                    // Number of Rx
@@ -50,73 +50,69 @@ El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0
 
 throughWall = 1;
 // Position of each TX in the array
-TX_pos = signal(1, TxNum, false);
-TX_pos[0] = 1; // TX 1 
-TX_pos[1] = 0; // TX 2
+TX_pos = signal(1, 4, false);
+TX_pos[0] = 0; // TX 1 
+TX_pos[1] = 1; // TX 2
 TX_pos[2] = 3; // TX 3
 Tx_pos[3] = 2; // TX 4
-
-//Indices 0 to 2 are considered valid azimuth indices, we could have a set of txes so that there is no 0 azimuth position
-//We can't just shift all values untill the least is 0 because that would corrupt elevation calculation
-leastAzTx = 3;
-TxAz = 0;
-TxEl = 0;
-TX_posEl = signal(1, 2, false);
-TX_posEl = 0;
-hasFirstTx = false;
-for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
+txesSelected = 0;
+for (index = 0; index < 4; index = index + 1)
 {
-	  if ((TX_pos[txIndex] >= 0) and (Tx_pos[txIndex] < leastAzTx))
+	  if (TX_pos[0] >= 0)
 	  {
-		    leastAzTx = Tx_pos[txIndex];
-	  }
-	  if ((TX_pos[txIndex] >= 0) and (Tx_pos[txIndex] < 3))
-	  {
-		    TxAz = TxAz + 1;
-	  }
-	  if (TX_pos[txIndex] == 1)
-	  {
-		    hasFirstTx = true;
+		    txesSelected = txesSelected + 1;
 	  }
 }
 
-if (hasFirstTx)
+if (txesSelected != TxNum)
 {
-	  TxEl = 1;
-	  TX_posEl[0] = 1; // 2nd azimuth location
-	  for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
-	  {
-
-		    if (TX_pos[txIndex] == 3)
-		    {
-			      TxEl = 2;
-			      TX_posEl[1] = 3; // A special case
-		    }
-	  }
-}
-else
-{
-	  //Any and the only t can be used for the elevation
-	  TxEl = 1;
-	  for (txIndex = 0; txIndex < TxNum; txIndex = txIndex + 1)
-	  {
-		    if (TX_pos[txIndex] >= 0)
-		    {
-			      TX_posEl[0] = TX_pos[txIndex]; // The last one updated will be used for elevation
-		    }
-	  }
+	  print_line("Won't run. TxNum does not match the number of selected tx in the TX_pos array");
+	  goto justend; 
 }
 
-If (TxAz==0)
+TxAz = 2; // By the definition
+TxEl = 1; // By the definition
+if (TX_pos[0] < 0)
 {
-	  print_line("Won't run. At least one of the azimuth txes should be specified in TX_pos");
+	  print_line("Won't run. 1st tx should always be present");
 	  goto justend;
-}    
+}
+if (TX_pos[1] < 0)
+{
+	  print_line("Won't run. 2nd tx should always be present");
+	  goto justend;
+}
+
+//which tx in the switching order maps to which azimuth location (the 3rd tx is cosidered the last one in azimuth)
+TxMapping = signal(1, TxNum, false);
+TxMapping = -1; //We should clearly fail
+
+TxMapping[Tx_pos[0]] = 1; //TX1 maps to the second azimuth location
+TxMapping[Tx_pos[1]] = 0; //TX2 maps to the first azimuth location
+
+if (TX_pos[2] >= 0)
+{
+	  TxEl = 2;
+	  TxMapping[Tx_pos[2]] = 3; //TX3 maps to the last azimuth location, or non-azimuth to be more exact
+}
+
+if (TX_pos[3] >= 0)
+{
+	  TxAz = 3;
+	  TxMapping[Tx_pos[3]] = 2; //TX$ maps to the third azimuth location, the last actual azimuth
+}
+
+print_line("The switching order is:");
+for (index = 0; index < TxNum; index = index + 1)
+{
+	  if (TxMapping[index] != -1)
+	  {
+		    print_line(index, " antenna to be switched on goes to ", TxMapping[index], " location in azimuth axis (3 is non-azimuth).");
+	  }
+}
 
 out(TxAz);
 out(TxEl);
-out(leastAzTx);
-
 
 //Device tuning parameters
 startDelay=0.35;               // m
@@ -387,7 +383,7 @@ stopwallend:
 		    
 		    if (ie == perFrame - 1) //Store signals for the calculation of phases only during the last measurements
 		    {
-			      set_matrix_row(phaseMat, TX_pos[0]*Nch + chNum,phase(spectr_1)); // Store where the 1st tx (by the switching order) points
+			      set_matrix_row(phaseMat, TxMapping[0]*Nch + chNum,phase(spectr_1)); // Store where the 1st tx (by the switching order) points
 		    }
 
 		    //spectr=fft(sigZP)/T; 	                                              //										
@@ -535,19 +531,18 @@ stopwallend:
 						  ch_7[i] = s1[i * Nch + 6];
 						  ch_8[i] = s1[i * Nch + 7];
 					}
-					
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch, ch_1 - ch_1Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 1, ch_2 - ch_2Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 2, ch_3 - ch_3Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 3, ch_4 - ch_4Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 4, ch_5 - ch_5Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 5, ch_6 - ch_6Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 6, ch_7 - ch_7Prev);
-					set_matrix_row(difMat, TX_pos[Tx_i]*Nch + 7, ch_8 - ch_8Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch, ch_1 - ch_1Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 1, ch_2 - ch_2Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 2, ch_3 - ch_3Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 3, ch_4 - ch_4Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 4, ch_5 - ch_5Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 5, ch_6 - ch_6Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 6, ch_7 - ch_7Prev);
+					set_matrix_row(difMat, TxMapping[Tx_i]*Nch + 7, ch_8 - ch_8Prev);
 					
 					for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 					{
-						  cc1=get_matrix_row(difMat, TX_pos[Tx_i]*Nch + chNum);	
+						  cc1=get_matrix_row(difMat, TxMapping[Tx_i]*Nch + chNum);	
 																						  
 						  SigZP_1=0; 								
 						  Insert(cc1*W,0,N-1,SigZP_1,0);	
@@ -556,7 +551,7 @@ stopwallend:
 						  set_window(spectr_1,pointsToView*dT,pointsToView);
 						  
 						  //Should not corrupt TX_pos[0] rows
-						  set_matrix_row(phaseMat, TX_pos[Tx_i]*Nch + chNum, phase(spectr_1));
+						  set_matrix_row(phaseMat, TxMapping[Tx_i]*Nch + chNum, phase(spectr_1));
 					}
 			      }
 		    }
@@ -652,9 +647,9 @@ stopwallend:
 			      
 			      //Rows should be in the correct order by now
 			      //Should store from 0th element always
-			      for (txAzCurrent = leastAzTx; txAzCurrent < leastAzTx + TxAz; txAzCurrent = txAzCurrent + 1)
+			      for (txAzCurrent = 0; txAzCurrent < TxAz; txAzCurrent = txAzCurrent + 1)
 			      {
-					insert(phaseTag1, RxAz*(txAzCurrent - leastAzTx), RxAz*(txAzCurrent - leastAzTx + 1) - 1 , phAz, (txAzCurrent - leastAzTx)*RxAz);
+					insert(phaseTag1, Nch * txAzCurrent, Nch* txAzCurrent + RxAz - 1 , phAz, txAzCurrent * RxAz);
 			      }
 			      //r2=phAz;
 			      set_label(phAz,Azpadding,"v","m/s)");
@@ -686,19 +681,19 @@ stopwallend:
 			      histEntryAz[rangeNum - 1] = AzAngle;
 			      histEntryAz[rangeNum + 1] = AzAngle;
 
-			      //Any can be used for the elevation but TxEl will be 1 if it is not the 1st tx
-			      phEl[0] = phaseTag1[TX_posEl[0] * Nch + 5];
-			      phEl[1] = phaseTag1[TX_posEl[0] * Nch + 2];
-			      phEl[2] = phaseTag1[TX_posEl[0] * Nch + 6];
-			      phEl[3] = phaseTag1[TX_posEl[0] * Nch + 7];
+			      //tx1 is used for the elevation, it is always stored at the second 8ch region
+			      phEl[0] = phaseTag1[Nch + 5];
+			      phEl[1] = phaseTag1[Nch + 2];
+			      phEl[2] = phaseTag1[Nch + 6];
+			      phEl[3] = phaseTag1[Nch + 7];
 
 			      if (TxEl > 1)
 			      {
-					//No other tx antenna except 3rd can be used for the second part of elevation
-					phEl[4] = phaseTag1[TX_posEl[1] * Nch + 5];
-					phEl[5] = phaseTag1[TX_posEl[1] * Nch + 2];
-					phEl[6] = phaseTag1[TX_posEl[1] * Nch + 6];
-					phEl[7] = phaseTag1[TX_posEl[1] * Nch + 7];
+					//If there are two el txes, this second is in the last (4th) 8ch region
+					phEl[4] = phaseTag1[3 * Nch + 5];
+					phEl[5] = phaseTag1[3 * Nch + 2];
+					phEl[6] = phaseTag1[3 * Nch + 6];
+					phEl[7] = phaseTag1[3 * Nch + 7];
 			      }
 			      
 			      //r1=phEl;
