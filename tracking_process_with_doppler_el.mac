@@ -360,7 +360,7 @@
 					//timestampsTemp = currentTime;
 			      }
 			      
-			      if (innovationError < removeTrackThreshold)//update of track is vaid, not necessary best
+			      if (get_matrix(innovationError,0,0)*scaling < removeTrackThreshold)//update of track is vaid, not necessary best
 			      {
 					//print_line("setting measurement as used");
 					isMatchedDataGated[g] = 1;
