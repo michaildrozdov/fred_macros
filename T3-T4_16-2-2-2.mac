@@ -37,10 +37,10 @@ El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0
 TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 throughWall = 1;
 
-// Set no-existant antennas to -1
-TX_pos = signal(1, TxNum, false);
-TX_pos[0] = 1; // TX 1 
-TX_pos[1] = 0; // TX 2
+// Set non-existent antennas to -1
+TX_pos = signal(1, 4, false);
+TX_pos[0] = 0; // TX 1 
+TX_pos[1] = 1; // TX 2
 TX_pos[2] = 3; // TX 3
 Tx_pos[3] = 2; // TX 4
 //Device tuning parameters
@@ -66,8 +66,20 @@ dsinAz =c / (freq0*AzPadding*d);
 dsinEl = c / (freq0*ElPadding*d);
 if (Az==0) {TxAz=0;}    
 else 
-{ if (TxNum==3) {TxAz=2;} else{TxAz=3;}}        
-if (El==0) {TxEl=0;} else{TxEl=2;}
+{
+	TxAz = 2;
+	if (Tx_pos[3] != -1)
+	{
+		TxAz = 3;
+	}
+}        
+if (El==0) {
+	TxEl=0;
+} 
+else
+{
+	TxEl=2;
+}
 
 maximumsDelay=ceil(startDelay/distperpoint);        //Start delay number;
 
@@ -259,7 +271,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 					{
 						// we found our maximum
 						wallPoint = i;
-						print_line("Delay in meters: ", wallPoint * distPerPoint);
+						print_line("Wall found at: ", wallPoint * distPerPoint);
 						goto early2;
 					}
 				}
@@ -566,6 +578,7 @@ for(ii=N1;ii<N2;ii=ii+1)
 
 		for (target = 0; target < TagUs; target = target + 1)
 		{
+			Step = floor(ii / (16 + 2 * (TxNum - 1))) + 1;
 			rangeNum = scoreMaximums[target];
 			//					print(rangeNum);
 			R = rangeNum * distPerPoint;
@@ -599,61 +612,78 @@ for(ii=N1;ii<N2;ii=ii+1)
 //			print(Vmag, "  ");
 
 			phaseTag = get_matrix_row(phaseMatT, rangeNum);
-			insert(phaseTag, Tx_pos[1] * Nch, Tx_pos[1] * Nch + 4, phAz, 0);
-			insert(phaseTag, Tx_pos[0] * Nch, Tx_pos[0] * Nch + 4, phAz, 5);
-			// If there's TX4 at all
-			if (Tx_pos[3] != -1)
+
+
+
+			if (Az == 1)
 			{
-				insert(phaseTag, Tx_pos[3] * Nch, Tx_pos[3] * Nch + 4, phAz, 10);
+				// checking if TX 4 is on
+				phAz_index = 0;
+				if (Tx_pos[3] != -1)
+				{
+					insert(phaseTag, Tx_pos[1] * Nch, Tx_pos[3] * Nch + RxAz - 1, phAz, phAz_index);
+					phAz_index = phAz_index + 5;
+				}
+				// This is probably always on
+				insert(phaseTag, Tx_pos[0] * Nch, Tx_pos[0] * Nch + RxAz - 1, phAz, phAz_index);
+				phAz_index = phAz_index + 5;
+				// TX 2 is always on
+				insert(phaseTag, Tx_pos[3] * Nch, Tx_pos[1] * Nch + RxAz - 1, phAz, phAz_index);
+
+				//			r15 = unwrap(phAz);
+				Az16 = fft(Whaz * (cos(phAz) + j() * sin(phAz)));
+				L16 = mag(Az16);
+				m16 = max(L16, posAz);
+
+				if (posAz > AzPadding / 2)
+				{
+					AzAngle = asin((posAz - AzPadding) * dsinAz) * 180 / pi();
+				}
+				else
+				{
+					AzAngle = asin(posAz * dsinAz) * 180 / pi();
+				}
+				//			print(AzAngle, "  ");
 			}
 
-			// Tx 2
-//			r15 = unwrap(phAz);
-
-			Az16 = fft(Whaz * (cos(phAz) + j() * sin(phAz)));
-			L16 = mag(Az16);
-			m16 = max(L16, posAz);
-
-			if (posAz > AzPadding / 2)
-			{
-				AzAngle = asin((posAz - AzPadding) * dsinAz) * 180 / pi();
-			}
-			else
-			{
-				AzAngle = asin(posAz * dsinAz) * 180 / pi();
-			}
-//			print(AzAngle, "  ");
 
 			// Elevation time
-			phEl[0] = phaseTag[Tx_pos[0] * Nch + 5];
-			phEl[1] = phaseTag[Tx_pos[0] * Nch + 2];
-			phEl[2] = phaseTag[Tx_pos[0] * Nch + 6];
-			phEl[3] = phaseTag[Tx_pos[0] * Nch + 7];
-
-			phEl[4] = phaseTag[Tx_pos[2] * Nch + 5];
-			phEl[5] = phaseTag[Tx_pos[2] * Nch + 2];
-			phEl[6] = phaseTag[Tx_pos[2] * Nch + 6];
-			phEl[7] = phaseTag[Tx_pos[2] * Nch + 7];
-//			r14 = unwrap(phEl);
-
-			set_label(phEl,ElPadding,"v","m/s");
-			El16 = fft(Whel * (cos(phEl) + j() * sin(phEl)));
-			L16 = mag(El16);
-//			r14 = L16;
-			m16 = max(L16, posEl);
-
-			if (posEl > ElPadding / 2)
+			if (El == 1)
 			{
-				ElAngle = asin((posEl - ElPadding) * dsinEl) * 180 / pi();
-			}
-			else
-			{
-				ElAngle = asin(posEl * dsinEl) * 180 / pi();
-			}
+				phEl[0] = phaseTag[Tx_pos[0] * Nch + 5];
+				phEl[1] = phaseTag[Tx_pos[0] * Nch + 2];
+				phEl[2] = phaseTag[Tx_pos[0] * Nch + 6];
+				phEl[3] = phaseTag[Tx_pos[0] * Nch + 7];
 
-			print(ElAngle, "  ");
+				phEl[4] = phaseTag[Tx_pos[2] * Nch + 5];
+				phEl[5] = phaseTag[Tx_pos[2] * Nch + 2];
+				phEl[6] = phaseTag[Tx_pos[2] * Nch + 6];
+				phEl[7] = phaseTag[Tx_pos[2] * Nch + 7];
+				//			r14 = unwrap(phEl);
+
+				set_label(phEl,ElPadding,"v","m/s");
+				El16 = fft(Whel * (cos(phEl) + j() * sin(phEl)));
+				L16 = mag(El16);
+				//			r14 = L16;
+				m16 = max(L16, posEl);
+
+				if (posEl > ElPadding / 2)
+				{
+					ElAngle = asin((posEl - ElPadding) * dsinEl) * 180 / pi();
+				}
+				else
+				{
+					ElAngle = asin(posEl * dsinEl) * 180 / pi();
+				}
+
+//				print(ElAngle, "  ");
+			}
+			if (target == 0)
+			{
+				print_line(Step, "  ", R, "  ", Vmag, "  ", AzAngle, "  ", ElAngle);
+			}
 		}
-		print_line("");
+		//print_line("");
 
 		ie = -1;
 		hitM = 0;
