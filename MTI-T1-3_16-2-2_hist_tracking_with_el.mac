@@ -404,7 +404,7 @@ stopwallend:
 			      set_matrix_row(ph1Matrix,ie,ph1);                                                                      					                         																				         											
 			      set_label(r9,(pointsToView/2+1)/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");             											
 		    }                          
-		    totalFound = 0;																				
+																				
 		    targetSignal = averaged;											
 		    prevMin = 0;											
 		    mainMax=max(targetSignal,pos); 
@@ -427,10 +427,7 @@ stopwallend:
 							    {							
 								      if(targetSignal[ia]> requiredLevel)			
 								      {											
-										hitMaximums[ia] =hitMaximums[ia]+1;											
-										MaximumNumber=ia; 											
-										maximums[totalFound] = ia; 																					
-										totalFound = totalFound + 1;						
+										hitMaximums[ia] =hitMaximums[ia]+1;																	
 								      }											
 							    }							
 						  }								
@@ -443,8 +440,7 @@ stopwallend:
 						  prevMin = ia;							
 					}								
 			      }                 										
-		    }											
-		    //if (MaximumNumber > lastMaximumNumber) {lastMaximumNumber = MaximumNumber;} 											 											
+		    }																					 											
 		    set_matrix_row(averagedMat, chNum, averaged);																						
 	  }																																	
 	  r6 = hitMaximums; // hit maximums number point number respons
