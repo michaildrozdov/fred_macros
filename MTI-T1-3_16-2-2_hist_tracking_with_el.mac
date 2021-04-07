@@ -2,7 +2,8 @@
 clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_389-T1-T2-T3-0_radom_udal_pribl.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_390-T1-T2-T3-0_radom_cross.sig";
-path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
+//path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
+path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX3_board_green_16-2-2-2\test_395-T1-T2-T3-T4-0_radom_cross.sig";
 //path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
 pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
 //pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
