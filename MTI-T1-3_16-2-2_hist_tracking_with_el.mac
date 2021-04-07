@@ -18,7 +18,6 @@ RxAz = 5;                  //Number of Rx for Az
 RxEl = 4;                    //Number of Rx for El 
 
 //Parameters from designer
-TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 K = 1;                        // Number of Tx (columns in mt matrix)	
 T = 10;                      // Chirp duration, ms
 P = 1;                        // Chirp pause duration, ms 
@@ -44,6 +43,7 @@ elHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaut
 elHistStep = 2; // Angle step in the angle histogram, degrees
 	         																															
 //GUI parametes
+TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 Range = 30;                  // m
 Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously        
