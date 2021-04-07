@@ -43,12 +43,12 @@ elHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaut
 elHistStep = 2; // Angle step in the angle histogram, degrees
 	         																															
 //GUI parametes
-TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 Range = 30;                  // m
 Az = 1;                   // To measure Azimuth   (1,0)
-El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously        
-
+El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
 throughWall = 1;
+TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
+
 // Position of each TX in the array
 TX_pos = signal(1, 4, false);
 TX_pos[0] = 0; // TX 1 
@@ -641,86 +641,104 @@ stopwallend:
 				     
 			      phaseTag1=get_matrix_row(phaseMatT,rangeNum);
 			      
-			      //Rows should be in the correct order by now
-			      //Should store from 0th element always
-			      for (txAzCurrent = 0; txAzCurrent < TxAz; txAzCurrent = txAzCurrent + 1)
+			      if (Az==1)
 			      {
-					insert(phaseTag1, Nch * txAzCurrent, Nch* txAzCurrent + RxAz - 1 , phAz, txAzCurrent * RxAz);
+					//Rows should be in the correct order by now
+					//Should store from 0th element always
+					for (txAzCurrent = 0; txAzCurrent < TxAz; txAzCurrent = txAzCurrent + 1)
+					{
+						  insert(phaseTag1, Nch * txAzCurrent, Nch* txAzCurrent + RxAz - 1 , phAz, txAzCurrent * RxAz);
+					}
+					//r2=phAz;
+					set_label(phAz,Azpadding,"v","m/s)");
+					//if (it == 0)
+					//{
+					//	  r12=phAz;
+					//}
+					Az16=fft(WHaz*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
+					L16=mag(Az16);                                        
+					m16=max(L16,posAz);
+					//r12=L16;
+					//out(posAz);
+					if(posAz>Azpadding/2) 
+					{
+						  AzAngle=Asin((posAz-Azpadding)*dsinAz)*180/pi();  //Negative velocity (From the left)
+						  //r12=push(L16,2*(Azpadding-posAz));  
+						  set_marker(12,1,Azpadding-posAz); 
+					}  
+					else 
+					{
+						  AzAngle=Asin(posAz*dsinAz)*180/pi();   //Positive velocity (From the right)
+						  //r12=L16; 
+						  set_marker(12,1,posAz);   
+					}                   
+					//Print_line(" Az=",AzAngle," deg");
+					histEntryAz[rangeNum] = AzAngle;
+					
+					// Splash the detection to neighboring ranges
+					histEntryAz[rangeNum - 1] = AzAngle;
+					histEntryAz[rangeNum + 1] = AzAngle;
 			      }
-			      //r2=phAz;
-			      set_label(phAz,Azpadding,"v","m/s)");
-			      //if (it == 0)
-			      //{
-			      //	  r12=phAz;
-			      //}
-			      Az16=fft(WHaz*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
-			      L16=mag(Az16);                                        
-			      m16=max(L16,posAz);
-			      //r12=L16;
-			      //out(posAz);
-			      if(posAz>Azpadding/2) 
+			      else
 			      {
-					AzAngle=Asin((posAz-Azpadding)*dsinAz)*180/pi();  //Negative velocity (From the left)
-					//r12=push(L16,2*(Azpadding-posAz));  
-					set_marker(12,1,Azpadding-posAz); 
-			      }  
-			      else 
-			      {
-					AzAngle=Asin(posAz*dsinAz)*180/pi();   //Positive velocity (From the right)
-					//r12=L16; 
-					set_marker(12,1,posAz);   
-			      }                   
-			      //Print_line(" Az=",AzAngle," deg");
-			      histEntryAz[rangeNum] = AzAngle;
-			      
-			      // Splash the detection to neighboring ranges
-			      histEntryAz[rangeNum - 1] = AzAngle;
-			      histEntryAz[rangeNum + 1] = AzAngle;
-
-			      //tx1 is used for the elevation, it is always stored at the second 8ch region
-			      phEl[0] = phaseTag1[Nch + 5];
-			      phEl[1] = phaseTag1[Nch + 2];
-			      phEl[2] = phaseTag1[Nch + 6];
-			      phEl[3] = phaseTag1[Nch + 7];
-
-			      if (TxEl > 1)
-			      {
-					//If there are two el txes, this second is in the last (4th) 8ch region
-					phEl[4] = phaseTag1[3 * Nch + 5];
-					phEl[5] = phaseTag1[3 * Nch + 2];
-					phEl[6] = phaseTag1[3 * Nch + 6];
-					phEl[7] = phaseTag1[3 * Nch + 7];
+					AzAngle = 0;
 			      }
 			      
-			      //r1=phEl;
-			      set_label(phEl,Elpadding,"v","m/s)");
-			      El16=fft(WHel*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
-			      L16=mag(El16);                                        
-			      m16=max(L16,posEl);
-			      if (it == 0)
+			      if (El==1)
 			      {
-					r12=PhEl;
+					//tx1 is used for the elevation, it is always stored at the second 8ch region
+					phEl[0] = phaseTag1[Nch + 5];
+					phEl[1] = phaseTag1[Nch + 2];
+					phEl[2] = phaseTag1[Nch + 6];
+					phEl[3] = phaseTag1[Nch + 7];
+
+					if (TxEl > 1)
+					{
+						  //If there are two el txes, this second is in the last (4th) 8ch region
+						  phEl[4] = phaseTag1[3 * Nch + 5];
+						  phEl[5] = phaseTag1[3 * Nch + 2];
+						  phEl[6] = phaseTag1[3 * Nch + 6];
+						  phEl[7] = phaseTag1[3 * Nch + 7];
+					}
+					
+					//r1=phEl;
+					set_label(phEl,Elpadding,"v","m/s)");
+					El16=fft(WHel*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
+					L16=mag(El16);                                        
+					m16=max(L16,posEl);
+					if (it == 0)
+					{
+						  r12=PhEl;
+					}
+					//out(posEl);
+					if(posEl>Elpadding/2) 
+					{ 
+						  ElAngle=asin((posEl-Elpadding)*dsinEl)*180/pi();  //Negative velocity (From the bottom)
+						  //r12=push(L16,2*(Elpadding-posAz));  
+						  //set_marker(12,1,Elpadding-posAz); 
+					}  
+					else 
+					{
+						  ElAngle=asin(posEl*dsinEl)*180/pi();   //Positive velocity (From the right)
+						  //r12=L16; 
+						  //set_marker(12,1,posEl);   
+					}  
+					//r12=L16;
+					set_marker(12,1,posEl); 
+					//Print_line(" El=",ElAngle," deg");
+					histEntryEl[rangeNum] = ElAngle;
+					
+					// Splash the detection to neighboring ranges
+					histEntryEl[rangeNum - 1] = ElAngle;
+					histEntryEl[rangeNum + 1] = ElAngle;
 			      }
-			      //out(posEl);
-			      if(posEl>Elpadding/2) 
-			      { 
-					ElAngle=asin((posEl-Elpadding)*dsinEl)*180/pi();  //Negative velocity (From the bottom)
-					//r12=push(L16,2*(Elpadding-posAz));  
-					//set_marker(12,1,Elpadding-posAz); 
-			      }  
-			      else 
+			      else
 			      {
-					ElAngle=asin(posEl*dsinEl)*180/pi();   //Positive velocity (From the right)
-					//r12=L16; 
-					//set_marker(12,1,posEl);   
-			      }  
-			      //r12=L16;
-			      set_marker(12,1,posEl); 
-			      //Print_line(" El=",ElAngle," deg");
-			      histEntryEl[rangeNum] = ElAngle;
+					ElAngle = 0;
+			      }
 			      
 			      print_line(Step, ", ", it + 1, ", ", R, ", ", Vmag, ", ", AzAngle, ", ", ElAngle, ",");
-			      
+					
 			      //data for tracking
 			      rData[numOfData] = R;
 			      vData[numOfData] = Vmag;
@@ -734,10 +752,6 @@ stopwallend:
 					numOfData= numOfData + 1;
 			      }				
 			      //data for tracking is updated
-			      
-			      // Splash the detection to neighboring ranges
-			      histEntryEl[rangeNum - 1] = ElAngle;
-			      histEntryEl[rangeNum + 1] = ElAngle;                            
 		    }
 		    
 		    //Kalman filter based tracking update
