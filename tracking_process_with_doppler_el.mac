@@ -34,8 +34,8 @@
 	  kMatches = 1;//how many updated Kalman states can be created from single one with measurements close enough to estimation
 	  trueTrackThreshold = 1.5;//match factor defining, what is considered true track, less is for less false tracks
 	  removeTrackThreshold = 10;//factor defining, threshold for track removal, less is for faster tracks removal
-	  minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
-	  minAgeToDisplayTangental = 3;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
+	  minAgeToDisplayRadial = 4;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
+	  minAgeToDisplayTangental = 5;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
 
 	  matchingVelocityThreshold = 0.5;//0.8 means within 80%
 	  matchingPositionThreshold = 1;
@@ -48,9 +48,9 @@
 	  set_matrix(R,1,1, 0.75);
 	  set_matrix(R,2,2, 12); //az angle estimation is very noisy
 	  set_matrix(R,3,3, 20); //el angle estimation is most noisy
-	  rr11 = 1.5*get_matrix(R, 0,0); //value against which the track distance covariance is compared
-	  rr33 = 1.5*get_matrix(R, 2,2);//value against which the track angle covariance is compared
-	  rr44 = 1.5*get_matrix(R, 3,3);//value against which the track angle covariance is compared
+	  rr11 = get_matrix(R, 0,0); //value against which the track distance covariance is compared
+	  rr33 = get_matrix(R, 2,2);//value against which the track angle covariance is compared
+	  rr44 = get_matrix(R, 3,3);//value against which the track angle covariance is compared
 	    
 	  //Q = 0.05*eye(6);//process noise for Kalman filter estimation, smaller number means believing model more than measurement
 	  Q = matrix(6,6);
@@ -93,7 +93,7 @@
 		    range = get_matrix(states, tr, 0);
 		    angle = get_matrix(states, tr, 2);
 		    elevation = get_matrix(states, tr, 4);
-		    //print_line("Examining track ",  range, " ",  x21[tr], " ", angle, " ",  x41[tr]);
+		    //print_line("Examining track ",  range, " ",  get_matrix(states, tr, 1), " ", angle, " ",  get_matrix(states, tr, 3));
 
 		    xtrack = range * sin(angle * pi() / 180) * cos(elevation * pi() / 180); //along az
 		    ytrack = range * cos(angle * pi() / 180) * sin(elevation * pi() / 180); //along el
@@ -458,8 +458,8 @@
 		    }
 		    scaledError = thresholds[tr]*get_matrix(covariances, tr*6, 0)/rr11*get_matrix(covariances, tr*6 + 2, 2)/rr33*get_matrix(covariances, tr*6 + 4, 4)/rr44;
 		    //scaledError = thresholds[tr]*p11[tr]/rr11*p33[tr]/rr33;
-		    //print_line("Updated values ", x11[tr], ", ", x21[tr], ", ", x31[tr], ", ", x41[tr]);
-		    //print_line("error=", thresholds[tr], ", covariances ", p11[tr], ", ", p33[tr], " scaled error=", scaledError);
+		    //print_line("Updated values ", get_matrix(states, tr, 0), ", ", get_matrix(states, tr, 1), ", ", get_matrix(states, tr, 2), ", ", get_matrix(states, tr, 3));
+		    //print_line("error=", thresholds[tr], ", covariances ", get_matrix(covariances, tr*6, 0), ", ", get_matrix(covariances, tr*6+2, 2), " scaled error=", scaledError);
 	  }
 	  //print_line("After update thresholds");
 	  //print_line("");

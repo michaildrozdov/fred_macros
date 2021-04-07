@@ -1,0 +1,643 @@
+//Video_Dif_Ch_Av15_Angle _MTI-T1-3 										
+clear_variables();	
+path_t="C:\multitarget_data\Indoor\Fred-2021-02-12\test_325-T1-T2-T3-T4-0_udal.sig";
+pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
+
+//Parameteres from hardware                                   										
+Nch = 8;                    // Number of Rx
+N = 1024;                  // Nuber of input points in each channel											
+c = 0.3;                    // Light velocity, m/ns
+freq0 = 3.1;               // Start frequency, GHz
+freqMax = 3.6;           // Stop frecuency, GHz 
+d = 0.061;                 // MIMO array step, m  
+RxAz = 5;                  //Number of Rx for Az 
+RxEl = 4;                    //Number of Rx for El 
+
+//Parameteres from designer
+K = 1;                        // Number of Tx (columns in mt matrix)	
+T = 10;                      // Chirp duration, ms
+P = 1;                        // Chirp pause duration, ms 
+Mn = 12;                    // Range padding window power
+Alfa = 0.1;                  // Avereging filter coefficient
+perFrame = 16;            // Number of chirps in frame for velosity calculation
+//requiredAmpl = 2;	        // Minmum amplitude of spectrum extremums										
+//requiredRise = 0.1;       // of spectrum, mV per point											
+scoreThreshold = 4;      // of channels spectrum maksimums positions  intersections
+TagscoreThreshold =7;  // of chirps avereged MTI specbitsrums intersections in frame	
+dopplerPadding = 128;   // doppler padding window number
+Azpadding= 128;	         // azimuth angle padding window number
+Elpadding= 128;	         // elevation angle padding window number								
+Nor=2^15;	                 // Signal amplitude nor
+NoiseLevel = 0.25;        // FaLse maximums level
+dMinLevel = 0.2;          // FaLse adjacent minimum level
+MinRise = 0.01;             // FaLse rise level
+	         																															
+//GUI parametes
+Range = 30;                  // m
+Az = 1;                   // To measure Azimuth   (1,0)
+El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously        
+TxNum=3;              // Number 0f Tx antennas (3, 4 optional);
+
+//Device tuning parameters
+startDelay=0.35;               // m
+Ch =1;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
+
+//Tracking low level params
+maxTracks = 20;
+maxData = 40;
+
+numOfTracks = 0;
+timestamps = signal(1, maxTracks, false);
+
+//state of tracks
+states = matrix(maxTracks, 6); //including elevation
+states = 0;
+
+//covariances of tracks
+covariances = matrix(maxTracks * 6, 6); //6 rows at a time is for a single 6x6 covar matrix
+covariances = 0;
+
+thresholds = signal(1, maxTracks, false);
+ages = signal(1, maxTracks, false);
+isValidatedArray = signal(1, maxTracks, false);
+
+rData = signal(1, maxData, false);//array of distances
+vData = signal(1, maxData, false);//array of velocities
+aData = signal(1, maxData, false);//array of az angles
+eData = signal(1, maxData, false);//array of el angles
+isUsedData = signal(1, maxData, false);
+isMatchedData = signal(1, maxData, false);
+idsData = signal(1, maxData, false);
+
+timestamps = 0;
+//end of tracking low level params
+
+//Tracking high level params
+trueTrackThreshold = 0.8;
+maxVel = 2;//m/s
+minVel = 0.1;//m/s
+minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
+minAgeToDisplayTangental = 4;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
+//end of tracking igh level params										
+
+//Calculated parameters 											
+Tc =T+P;                       // Chirp period, ms
+Tf = Tc*perFrame/1000;   // Frame period, s											
+Nn = pow(2,Mn);           // Padding window number											
+dT = T/N;                    // Time step											
+Tn = dT*Nn;                // Padding window duration, ms
+B = freqMax - freq0;      // Bandwidth											
+slope = B/(T/1000);       //0.5 GHz/10 ms	
+deltaf = 1/(T/1000);      //Hz,   original IF delta										
+distPerPoint = deltaf*c/2/slope*N/Nn; //m
+pointsToView = ceil(Range/distPerPoint)+2;											
+totalDistance = distPerPoint*(N/2+1);
+lambda0 = c/freq0;											
+domega = 2*pi()/dopplerPadding;											
+dvel = lambda0*domega/4/pi()/Tc*1000;
+dsinAz =c/(freq0*Azpadding*d);
+dsinEl = c/(freq0*Elpadding*d);
+
+//kVmsa=6/(perFrame*(perFrame-1)*(2*perFrame-1)); //for mean-scuare approximated velocity calculation
+MaximumsDelay=ceil(startDelay/distperpoint);        //Start delay number;
+TxAz=1;
+If (Az==0)
+{
+	  TxAz=0;
+}    
+else 
+{
+	  if (TxNum==3) 
+	  {
+		    TxAz=2;
+	  }
+	  else
+	  {
+		    if (TxNum==4)
+		    {
+			      TxAz=3;
+		    }
+	  }
+}        
+If (El==0) {TxEl=0;} else{TxEl=2;}
+
+out(TxAz);
+ 
+//Variables      											
+// Don't used in this macros
+//perBreathFrame = 64;											
+//breathingPeriod = 128;//of slow samples
+//paddingRate = Nn/N; 
+//padAngleTo = 32;											
+//breathSkips = 8; //how many chirps are acquired before next brething sample
+// Don't used in this macros
+//breathingDeltaT = breathSkips*T/1000;//seconds per sample											
+//breathingWindow = breathingPeriod*breathingDeltaT;//seconds											
+//breathingDeltaF = 1/breathingWindow;//Hz																																																																																				
+//breathingDeltaT = breathSkips*T/1000;//seconds per sample											
+//breathingWindow = breathingPeriod*breathingDeltaT;//seconds											
+//breathingDeltaF = 1/breathingWindow;//Hz																						
+//dphase = 2*pi()/padAngleTo;											
+
+out(deltaf);											
+out(distPerPoint);											
+out(pointsToView);																																	
+out(paddingRate);											
+out(breathingWindow);																																																																												
+out(dvel);
+                                 											
+ch_1 = signal(T,N,false);   // Channel 1 signal											
+ch_1=0; ch_2=ch_1; ch_3=ch_1; ch_4=ch_1; ch_5=ch_1;											
+ch_6=ch_1; ch_7=ch_1; ch_8 = ch_1;
+SigZP_1=signal(Tn,Nn,false); //Zerrow padded signal of Cjhannel 1						                                                          //
+
+ph2=signal(dopplerPadding,dopplerPadding,false); //Zerow padded phase for Doppler FFT 
+ph2=0;
+phAz=signal(Azpadding,Azpadding,false); //Zerow padded phase for Azimuth angle FFT
+PhAz=0;
+phEl=signal(Azpadding,Azpadding,false); //Zerow padded phase for Azimuth angle FFT
+PhEl=0;         						
+																																																															 																					
+s1=signal(T,N*Nch,false);											
+pos=0;
+posAz=0;
+posEl=0;
+
+averagedMat = matrix(Nch,pointsToView);											
+averagedMat = 0;											
+averaged = signal(Tn,pointsToView,false);
+Averaged=0;  
+hitTag = signal(dT*(pointsToView),pointsToView,false);
+hitTag=0;                                                               											
+hitM=hitTag;
+PadK=dopplerPadding/perFrame; // PadK=8
+I8=signal(PadK,PadK,false);                                                                   
+                                                                    ;											
+chMat=matrix(Nch*TxNum, N); // matrix to hold normalized signals   											
+prevChMat=matrix(Nch*TxNum, N); 											
+prevChMat=0;  											
+difMat=matrix(Nch*TxNum, N);                                                             																						
+hitMaximums=signal(Tn,pointsToView,false);	
+scoreMaximums=hitMaximums;										
+
+phaseMat = matrix(Nch*TxNum, pointsToView); phaseMat=0;
+phaseMatT = matrix(pointsToView,Nch);
+ph1Matrix=matrix(perFrame,pointsToView);
+//phMatrix=matrix(perFrame,pointsToView);                                         //
+ph1MatrixT=matrix(pointsToView,perFrame);	
+//phMatrixT=matrix(pointsToView,perFrame);                                       //											
+ph1Tag1=signal(perFrame,perFrame,false);
+//phTag1=signal(perFrame,perFrame,false);                                          //
+
+//Signal matrix loading from disk  											
+num=sig_get_count(path_t);
+N1=0; 											
+N2=num;
+Out(num);	
+ss1=matrix(num,N*Nch*TxNum);
+s1=signal(num,N*Nch*TxNum,false);																						
+For(ii=0;ii<num;ii=ii+1)											
+{											
+s1 = sig_read(path_t,ii);											
+set_matrix_row(ss1,ii,s1);											
+}
+
+//Window function for range FFT                      											
+W=sig_read(pathW,0); // Kaizer window 
+
+//Window function for Doppler FFT	
+WH=signal(dopplerPadding*Tc,dopplerPadding,false);   //Hamming Window for Doppler FFT
+WH=0;
+For(i=0;i<perFrame;i=i+1)
+{ WH[i]=0.54-0.46*cos(2*pi()*i/perFrame); } 
+//r13=WH;	
+
+WHel=signal(Elpadding*TxEl,Elpadding,false);   //Hamming Window for elevation angle FFT
+WHel=0;
+For(i=0;i<RxEl;i=i+1)
+{ WHel[i]=0.54-0.46*cos(2*pi()*i/Rxel); } // Hamming Window for azimuth angle FFT
+//r13=WHel;	
+
+WHaz=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
+WHaz=0;
+For(i=0;i<RxAz;i=i+1)
+{ WHaz[i]=0.54-0.46*cos(2*pi()*i/RxAz); } 
+//13=WHaz;																					
+pause(); 
+											
+t1=time();
+currentTime = 0;//used for tracker											
+For(ii=N1;ii<N2;ii=ii+1)											
+{
+  																						 																						
+	  s1 = get_matrix_row(ss1,ii); ;											
+	  // Channels unpacking									
+	  
+	  for (trans = 0; trans < TxNum; trans = trans + 1)
+	  {
+		    for(i=0;i<N;i=i+1)
+		    {
+			      ch_1[i] = s1[i * Nch + Nch*N*trans];
+			      ch_2[i] = s1[i * Nch + 1 + Nch*N*trans];
+			      ch_3[i] = s1[i * Nch + 2 + Nch*N*trans];
+			      ch_4[i] = s1[i * Nch + 3 + Nch*N*trans];
+			      ch_5[i] = s1[i * Nch + 4 + Nch*N*trans];
+			      ch_6[i] = s1[i * Nch + 5 + Nch*N*trans];
+			      ch_7[i] = s1[i * Nch + 6 + Nch*N*trans];
+			      ch_8[i] = s1[i * Nch + 7 + Nch*N*trans];
+		    }
+		    
+		    set_matrix_row(chMat, 0 + trans*Nch, ch_1/Nor);
+		    set_matrix_row(chMat, 1 + trans*Nch, ch_2/Nor);
+		    set_matrix_row(chMat, 2 + trans*Nch, ch_3/Nor);
+		    set_matrix_row(chMat, 3 + trans*Nch, ch_4/Nor);
+		    set_matrix_row(chMat, 4 + trans*Nch, ch_5/Nor);
+		    set_matrix_row(chMat, 5 + trans*Nch, ch_6/Nor);
+		    set_matrix_row(chMat, 6 + trans*Nch, ch_7/Nor);
+		    set_matrix_row(chMat, 7 + trans*Nch, ch_8/Nor);
+	  }
+	  																			
+	  hitMaximums =0;	
+	  hitTag=hitMaximums;																					
+	  difMat=chMat-prevChMat;
+	  prevChMat=chMat;
+	  If (ii == N1) {ie= -1; goto early1;}
+	  ie=ie+1;  // row number in ph1 marix 
+																				
+	  for ( chNum = 0; chNum < Nch*TxNum; chNum = chNum + 1)											
+          {											
+		    cc1=get_matrix_row(difMat, chNum);	
+		    //cc=get_matrix_row(chMat, chNum);                                //
+	    									           										
+		    SigZP_1=0; 
+		    //SigZP=SigZP_1;                                                            // 										
+		    Insert(cc1*W,0,N-1,SigZP_1,0);	
+		    //Insert(cc*W,0,N-1,SigZP,0);                                           //									
+		    spectr_1=fft(sigZP_1)/T;  //Range FFT                      
+		    set_window(spectr_1,pointsToView*dT,pointsToView);
+
+		    if (TxNum == 1)
+		    {
+			      set_matrix_row(phaseMat,chNum,phase(spectr_1));
+		    }
+		    else
+		    {
+			      if (chNum < RxAz)
+			      {
+					set_matrix_row(phaseMat,chNum+RxAz,phase(spectr_1));
+			      }
+			      else
+			      {
+					if ((chNum > 7) and (chNum < 8+RxAz))
+					{
+						  set_matrix_row(phaseMat,chNum - 8,phase(spectr_1));
+					}
+			      }
+		    }
+		    
+		    if (chNum > 7)
+		    {
+			      goto nextchannellabel;
+		    }
+		    
+		    //spectr=fft(sigZP)/T; 	                                              //										
+		    currentRangeSig=mag(spectr_1); 
+		    averaged=get_matrix_row(averagedMat,chNum);										
+		    averaged = (1-Alfa)*averaged+ Alfa* currentRangeSig;  // not rewriting averagedMat
+		    r12 = averaged;
+		    set_matrix_row(averagedMat,chNum,averaged);		       											
+		    //ie = ii - perFrame * floor(ii/perFrame);
+                                
+		    if(chNum==Ch)											
+		    {  											
+			      //r11=currentRangeSig; //MTI spectrum of ch1                      
+			      r9=averaged;           //LPF of r11	
+			      r8=currentRangeSig;
+			      ph1=get_matrix_row(phaseMat,Ch);
+			      //ph=phase(spectr);                                              //
+			      set_matrix_row(ph1Matrix,ie,ph1);                                                                      					                         																				         											
+			      set_label(r9,(pointsToView/2+1)/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");             											
+		    }                          
+																			
+		    targetSignal = averaged;											
+		    prevMin = 0;											
+		    mainMax=max(targetSignal,pos); 
+                                                          // Print_line(ie,"   ",chNum,"   ",pos,"   ",mainMax);											
+		    requiredLevel = mainMax/4;
+		    requiredLevel = mainMax*NoiseLevel;
+		    requiredAmpl = mainMax*dMinLevel;
+		    requiredRise =  mainMax*MinRise;																			
+		    for (ia = 1; ia < pointsToView-2; ia = ia + 1)										
+		    {											
+			      nextIndex = ia + 1;											
+			      prevIndex = ia - 1;											
+			      if (targetSignal[ia] > targetSignal[nextIndex])											
+			      {											
+					if (targetSignal[ia] > targetSignal[prevIndex])									
+					{									
+						  if (targetSignal[ia] - targetSignal[prevMin] > requiredAmpl)								
+						  {								
+							    if ((targetSignal[ia] - targetSignal[prevMin])/(ia - prevMin) > requiredRise)							
+							    {							
+								      if(targetSignal[ia]> requiredLevel)			
+								      {											
+										hitMaximums[ia] =hitMaximums[ia]+1;																	
+								      }											
+							    }							
+						  }								
+					}									
+			      }											    			             								
+			      if (targetSignal[ia] < targetSignal[nextIndex])								
+			      {										
+					if (targetSignal[ia] < targetSignal[prevIndex])								
+					{								
+						  prevMin = ia;							
+					}								
+			      }                 										
+		    }											
+		    //if (MaximumNumber > lastMaximumNumber) {lastMaximumNumber = MaximumNumber;} 											 											
+		    set_matrix_row(averagedMat, chNum, averaged);																						
+		    //prevChMat=chMat;
+		    nextchannellabel:
+	  }																																	
+	  r6 = hitMaximums; // hit maximums number point number respons											
+	  Sr15=hitMaximums; Sr15=0;																																
+	  TagN=0;
+	  TagU=0;											 											
+	  scoreMaximums=0; //Point number of Maximums with score > scoreThreshold
+	  targetsNum=0;										
+	  for (ia = MaximumsDelay; ia < pointsToView; ia = ia + 1)											
+	  {  																						
+		    if (hitMaximums[ia]<2) {goto early3;}											
+		    currentScore=(hitMaximums[ia-2]+hitMaximums[ia+2])/4+(hitMaximums[ia-1]+hitMaximums[ia+1])/2+hitMaximums[ia];																																	
+		    if (currentScore >= scoreThreshold )									
+		    {														
+			      scoreMaximums[TagN]=ia; 
+			      TagN=TagN+1;
+			      //r5[ia]=currentScore;
+                    }											
+		    early3:
+	  }	
+	  SM=scoreMaximums; //Points numbers of Maximums with score > scoreTreshold
+	  scoreMaximums=0; //Point numbers of Targets detachment
+	  for(ib=0; ib<tagN; ib=ib+1)
+	  {
+		    in=SM[ib];
+		    if (hitMaximums[in]>hitMaximums[in-1])
+		    {
+			     if(hitMaximums[in]>=hitMaximums[in+1])
+			     {
+					//r4[in]=1; //Moving targets demonstration
+					hitTag[in]=hitTag[in]+1;
+					scoreMaximums[TagU]=in; 
+					TagU=TagU+1;
+			      }
+		    }
+	  }
+	  //out(TagU);             //Moving targets number
+	  //r2=scoreMaximums; //Point numbers of Targets
+	  hitM=hitM+hitTag;
+	  //set_matrix_row(tagMatrix,ie,scoreMaximums);
+	  //Speed calculations
+	  if (ie==perFrame-1)
+	  {
+		    numOfData= 0;//num of raw detections for current frame
+		    lastIDused = 0;//global variable to assigng unique ID for each detection, should be incrementd when detection is added to the list
+		    isUsedData = 0;//assigning false to flags of detections data for tracker to use
+		    isMatchedData = 0;//assigning false to flags of detections data for tracker to use
+		    ie=-1;
+		    TagNs=0;
+		    TagUs=0;        
+                    for (ia = MaximumsDelay; ia < pointsToView; ia = ia + 1)											
+                    {  																						
+			      if (hitM[ia]==0) {goto early4;}											
+			      //currentScore=(hitTag[ia-2]+hitTag[ia+2])/4+(hitTag[ia-1]+hitTag[ia+1])/2+hitTag[ia];
+			      currentScore=(hitM[ia-1]+hitM[ia+1])+hitM[ia]+hitM[ia-2]+hitM[ia+2];																				
+			      if (currentScore >= TagscoreThreshold )									
+			      {														
+					scoreMaximums[TagNs]=ia; 
+					TagNs=TagNs+1; //add to the count of maximums
+					Sr3[ia]=currentScore;
+                              }											
+			      early4:
+		    }
+		    //Out(TagNs);
+		    //r14=scoreMaximums;                      
+		    SM=scoreMaximums; //Points numbers of Maximums with score >= scoreTreshold
+		    scoreMaximums=0; //Point numbers of Targets detachment
+		    for(ib=0; ib<tagNs; ib=ib+1)
+		    {
+			      in=SM[ib]; // Targets // Targets ranges numbers
+			      if (Sr3[in]>Sr3[in-1])
+			      {
+                                       if(Sr3[in]>=Sr3[in+1])
+                                       {
+                                        Sr15[in]=1; 
+                                        //hitM[in]=hitM[in]+1;
+                                        scoreMaximums[TagUs]=in; 
+                                        TagUs=TagUs+1;
+                                        }
+                             }
+                   }
+		    //Out(TagUs); 
+		    r10=Sr15;  // Moving targets demonstration     
+		    //Pause();
+		    //r3=Sr3;
+		    r16=scoreMaximums; 
+		    //r13=hitTag;
+		    r7=hitM;
+		    hitTag=0;         
+		    hitM=0;
+		    ph1MatrixT=transpose(ph1Matrix);
+		    phaseMatT=transpose(phaseMat);
+
+		    Step = floor((ii+1)/perFrame); //Number of speed calculation cycle  
+		    //Print_line("Ch",CH+1,"   Step=",Step,"  ",ii ); 
+		    for(it=0; it<TagUs; it=it+1)
+		    { 
+			      //Ph2=0;
+			      rangeNum=scoreMaximums[it];
+			      R=rangeNum*distperpoint;
+			      ph1Tag1=get_matrix_row(ph1MatrixT,rangeNum);  
+			      //set_window(ph1Tag1,perFrame,128);
+			      set_label(ph1Tag1,128,"v","m/s)");                                           
+			      insert(ph1Tag1,0,perFrame-1,Ph2,0);
+			      K11=fft(WH*(cos(ph2)+j()*sin(ph2))); // Doppler FFT on frame of Phazors
+			      L11=mag(K11); //L11[0]=L11[1];
+	  //if (it==0) {r11=  L11;   r1=ph1Tag1;}                    
+			      m11=max(L11,pos);
+			      //out(pos);
+			      if(pos>dopplerPadding/2) 
+			      { 
+					Vmag=(pos-dopplerPadding)*dvel;  //Negative velocity (Approach)
+					//11=push(L11,2*(dopplerPadding-pos));  
+					set_marker(11,1,dopplerPadding-pos); 
+			      }  
+			      else 
+			      {
+					Vmag=pos*dvel;   //Positive velocity (Away)
+					//r11=L11;
+					set_marker(11,1,pos);   
+			      }                              
+			      //Print_line("TagNo=",it+1," R=",R," m"," Vmag=",Vmag," m/s");
+                           
+			      phaseTag1=get_matrix_row(phaseMatT,rangeNum);
+                                
+			      If (Az==1)
+			      {
+					insert(phaseTag1,0,RxAz*TxAz-1,phAz,0);  
+					//r2=phAz;
+					set_label(phAz,Azpadding,"v","m/s)");
+					Az16=fft(WHaz*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
+					L16=mag(Az16);                                        
+					m16=max(L16,posAz);
+					//r12=L16;
+					//out(posAz);
+					if(posAz>Azpadding/2) 
+					{ 
+						  AzAngle=Asin((posAz-Azpadding)*dsinAz)*180/pi();  //Negative velocity (From the left)
+						  //r12=push(L16,2*(Azpadding-posAz));  
+						  set_marker(12,1,Azpadding-posAz); 
+					}  
+					else 
+					{
+						  AzAngle=Asin(posAz*dsinAz)*180/pi();   //Positive velocity (From the right)
+						  //r12=L16; 
+						  set_marker(12,1,posAz);   
+					}                   
+                                //Print_line(" Az=",AzAngle," deg");
+			      }
+			      else
+			      {
+					AzAngle = 0;
+			      }
+                                
+			      If (El==1)
+			      {
+					PhEl[0]=phaseTag1[5];
+					PhEl[1]=phaseTag1[6];
+					PhEl[2]=phaseTag1[3];
+					PhEl[3]=phaseTag1[7];
+
+					set_label(phEl,Elpadding,"v","m/s)");
+					El16=fft(WHel*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
+					L16=mag(El16);                                        
+					m16=max(L16,posEl);
+					//r12=L16;
+					//out(posEl);
+					if(posEl>Elpadding/2) 
+					{ 
+						  ElAngle=asin((posEl-Elpadding)*dsinEl)*180/pi();  //Negative velocity (From the bottom)
+					}  
+					else 
+					{
+						  ElAngle=asin(posEl*dsinEl)*180/pi();   //Positive velocity (From the right)
+					}  
+					//r12=L16;
+					set_marker(12,1,posEl); 
+					//Print_line(" El=",ElAngle," deg");
+			      }
+			      else
+			      {
+					ElAngle = 0;
+			      }
+			      print_line(Step, ", ", it + 1, ", ", R, ", ", Vmag, ", ", AzAngle, ", ", ElAngle, ",");
+			      //data for tracking
+			      rData[numOfData] = R;
+			      vData[numOfData] = Vmag;
+			      aData[numOfData] = AzAngle;
+			      eData[numOfData] = ElAngle;
+			      idsData[numOfData] = lastIDused;
+			      
+			      lastIDused = lastIDused + 1;
+			      if (numOfData + 1 < maxData)
+			      {
+					numOfData= numOfData + 1;
+			      }				
+			      //data for tracking is updated
+                    }
+		    //Kalman filter based tracking update
+		    print_line("Number of tracks before tracking update ", numOfTracks);
+		    () = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime);
+		    print_line("Number of tracks after update ", numOfTracks);
+		    
+		    for (tr = 0; tr < numOfTracks; tr = tr + 1)
+		    {
+			      if (thresholds[tr]/ages[tr] > trueTrackThreshold)
+			      {
+					//print_line("Track didn't pass by precision ", thresholds[tr]);
+					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					goto endofloop;
+			      }
+
+			      //measured qualities
+			      range = get_matrix(states, tr, 0);
+			      velocity = get_matrix(states, tr, 1);
+			      azimuth = get_matrix(states, tr, 2);
+			      elevation = get_matrix(states, tr, 4);
+
+			      xtrack = range * sin(azimuth * pi() / 180) * cos(elevation * pi() / 180); //along az
+			      ytrack = range * cos(azimuth * pi() / 180) * sin(elevation * pi() / 180); //along el
+			      ztrack = range * cos(azimuth * pi() / 180) * cos(elevation * pi() / 180); //from the radar
+			      
+			      //derived qualities
+			      dTh = get_matrix(states, tr, 3) * pi()/180;
+			      dEl = get_matrix(states, tr, 5) * pi()/180;
+
+			      vx = velocity * sin(azimuth* pi() / 180) + range*dTh * cos(azimuth * pi() / 180);
+			      vy = velocity * sin(elevation* pi() / 180) + range*dEl * cos(elevation * pi() / 180);
+			      vz = velocity * cos(azimuth* pi() / 180) * cos(elevation * pi() / 180) - range*dTh * sin(azimuth * pi() / 180)*dEl * sin(elevation * pi() / 180);
+			      //old
+			      //vx = velocity * sin(azimuth* pi() / 180) + range*dTh * cos(azimuth * pi() / 180);
+			      //vy = velocity * cos(azimuth* pi() / 180) - range*dTh * sin(azimuth * pi() / 180);
+
+			      vel = sqrt(vx*vx + vy*vy + vz*vz);
+
+
+			      if (vel < minVel)
+			      {
+					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					goto endofloop;
+			      }
+
+			      if (vel > maxVel)
+			      {
+					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					goto endofloop;
+			      }
+
+			      if (ages[tr] < minAgeToDisplayRadial)
+			      {
+					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					goto endofloop;
+			      }
+			  
+			      //tangental only movement can be easily faked by several stationary reflections, so should be registered after more updates
+			      if (abs(velocity) < 0.5*range*tan(azimuth*pi()/180)*tan(elevation*pi()/180))//tangental movement is twice faster than radial
+			      {
+					if (ages[tr] < minAgeToDisplayTangental)
+					{
+						  //print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+						  goto endofloop;
+					}
+			      }
+			      //print_line("Have valid track at position ", x, ", ", y, " and velocity ", vx, ", ", vy);
+			      print_line("Track ID=", idsdata[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
+			      print_line("In Cartesian: ", xtrack, " ", ytrack, " ", ztrack);
+			      
+			      endofloop:
+			      //print_line("end of loop");
+		    }
+
+		    currentTime = currentTime + perFrame*(T+P)/1000; //T+P should be approx. 11 ms with current implementation
+	  } 
+        
+        
+//pause();										
+early1:
+}											
+t2=time();
+tM=t2-t1;
+Out(tM);											
+				
+	
