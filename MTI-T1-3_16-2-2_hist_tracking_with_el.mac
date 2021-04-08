@@ -59,7 +59,7 @@ Tx_pos[3] = 2; // TX 4
 txesSelected = 0;
 for (index = 0; index < 4; index = index + 1)
 {
-	  if (TX_pos[0] >= 0)
+	  if (TX_pos[index] >= 0)
 	  {
 		    txesSelected = txesSelected + 1;
 	  }
