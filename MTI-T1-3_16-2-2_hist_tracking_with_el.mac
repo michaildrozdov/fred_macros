@@ -272,16 +272,11 @@ ph1Tag1=signal(perFrame,perFrame,false);
 
 //Signal matrix loading from disk  											
 num=sig_get_count(path_t);
-N1=0; 											
-N2=num;
-Out(num);	
-ss1=matrix(num,N*Nch*TxNum);
+sigsPerFrame = perFrame + 2 * (TxNum - 1);
+totalFrames = floor(num / sigsPerFrame);
+Out(num);
+ss1=matrix(sigsPerFrame, N*Nch*TxNum);
 s1=signal(num,N*Nch*TxNum,false);																						
-For(ii=0;ii<num;ii=ii+1)											
-{											
-s1 = sig_read(path_t,ii);											
-set_matrix_row(ss1,ii,s1);											
-}
 
 //Window function for range FFT                      											
 W=sig_read(pathW,0); // Kaizer window 
@@ -307,8 +302,21 @@ For(i=0;i<RxAz;i=i+1)
 pause(); 
 											
 t1=time();
-currentTime = 0;//used for tracker											
-For(ii=N1;ii<N2;ii=ii+1)											
+currentTime = 0;//used for tracker
+frameIndex = 0;
+
+for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
+{
+	  //The device is writing the new frame data
+	  for(ii=0; ii < sigsPerFrame; ii = ii + 1)											
+	  {											
+		    s1 = sig_read(path_t, frameIndex * sigsPerFrame + ii);											
+		    set_matrix_row(ss1,ii,s1);											
+	  }
+	  //New frame data is acquired
+	  ie = 0;
+
+for(ii = 0; ii < perFrame; ii = ii + 1)
 {
 	  s1 = get_matrix_row(ss1, ii) / Nor;
 	  for (chNum = 0; chNum < Nch; chNum = ChNum + 1)
@@ -320,10 +328,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    set_matrix_row(chMat, chNum, ch_1);
 	  }
 	  
-	  if (ii == N1)
+	  if ((ii == 0 ) and (frameIndex == 0))
 	  {
-		ie = -1;
-
 		if (throughWall == 1)
 		{
 			mean_sig = 0;
@@ -365,8 +371,7 @@ stopwallend:
 			pause();
 		}
 	  }
-	  ie = ie + 1;
-	  																	
+
 	  hitMaximums =0;	
 	  hitTag=hitMaximums;
 	  difMat=chMat-prevChMat; //There are only valid changes for TX_pos[0]
@@ -602,7 +607,7 @@ stopwallend:
 		    histEntryAz = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
 		    histEntryEl = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
 
-		    Step = floor((ii+1)/(16 + (TxNum - 1) * 2)); //Number of speed calculation cycle
+		    Step = frameIndex; //Number of speed calculation cycle
 		    //Print_line("Ch",CH+1,"   Step=",Step,"  ",ii );
 		    for(it=0; it<TagUs; it=it+1)
 		    { 
@@ -916,10 +921,11 @@ stopwallend:
 		    
 		    //pause();     
 	  } 
-
+	  
 	  //pause();
-	  early1:
+	  ie = ie + 1;
 }
+}//end of frame acquisition
 t2=time();
 tM=t2-t1;
 Out(tM);
