@@ -1,6 +1,7 @@
 //Video_Dif_Ch_Av15_Angle _MTI-T1-3 										
 clear_variables();	
-path_t="C:\multitarget_data\Indoor\Fred-2021-02-12\test_325-T1-T2-T3-T4-0_udal.sig";
+//path_t="C:\multitarget_data\Indoor\Fred-2021-02-12\test_325-T1-T2-T3-T4-0_udal.sig";
+path_t="C:\multitarget_data\Indoor\Fred-24-11-20\test_121-T1-G2e.sig";
 pathW="C:\multitarget_data\FRED\Kaizer.sig";    									
 
 //Parameteres from hardware                                   										
@@ -360,7 +361,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 		    //prevChMat=chMat;
 		    nextchannellabel:
 	  }																																	
-	  r6 = hitMaximums; // hit maximums number point number respons											
+	  r6 = hitMaximums; // hit maximums number point number respons
+	  r2=0; r4=r2; Sr15=r2;	r5=r2; r3=r2; Sr3=r2;
 	  Sr15=hitMaximums; Sr15=0;																																
 	  TagN=0;
 	  TagU=0;											 											
@@ -557,9 +559,7 @@ For(ii=N1;ii<N2;ii=ii+1)
 			      //data for tracking is updated
                     }
 		    //Kalman filter based tracking update
-		    print_line("Number of tracks before tracking update ", numOfTracks);
 		    () = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime);
-		    print_line("Number of tracks after update ", numOfTracks);
 		    
 		    for (tr = 0; tr < numOfTracks; tr = tr + 1)
 		    {
