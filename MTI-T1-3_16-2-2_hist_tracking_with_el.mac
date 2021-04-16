@@ -825,7 +825,7 @@ stopwallend:
 					}
 			      }
 			      //print_line("Have valid track at position ", x, ", ", y, " and velocity ", vx, ", ", vy);
-			      print_line("Track ID=", idsdata[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
+			      print_line(Step, ", Track ID=", idsdata[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
 			      print_line("In Cartesian: ", xtrack, " ", ytrack, " ", ztrack);
 			      
 			      endofloop:
