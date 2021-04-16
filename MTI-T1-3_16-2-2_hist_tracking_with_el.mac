@@ -854,6 +854,14 @@ stopwallend:
 					//print_line("azimuth hist:");
 					rangeNum=scoreMaximums[it];
 					R=rangeNum*distperpoint;
+					if (throughWall == 1)
+					{
+						R = R - wallPoint * distPerPoint;
+					}
+					else
+					{
+						R = R - startDelay;	
+					}
 					histAz = 0;
 					histEl = 0;
 					// Azimuth from the histogram
