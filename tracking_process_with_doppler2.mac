@@ -1,584 +1,584 @@
 () = tracking_process_with_doppler2(timestamps, x11, x21, x31, x41, p11, p21, p31, p41, p12, p22, p32, p42, p13, p23, p33, p43, p14, p24, p34, p44, thresholds, ages, numOfTracks, maxTracks, rData, aData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime)
 {
-	  //out(numOfTracks);
-	  timestampso = timestamps;
-	  
-	  //list of gated tracks
-	  maxNumGated = 20;
-	  
-	  numGated = 0;
-	  
-	  rDataGated = signal(1, maxNumGated, false);//array of distances
-	  aDataGated = signal(1, maxNumGated, false);//array of angles
-	  vDataGated = signal(1, maxNumGated, false);//array of velocities
-	  
-	  isUsedDataGated = signal(1, maxNumGated, false);
-	  isMatchedDataGated = signal(1, maxNumGated, false);
-	  idsDataGated = signal(1, maxNumGated, false);
-	  
-	  numOtherMatches = 0;
-	  
-	  rDataOtherMatches = signal(1, maxNumGated, false);//array of distances
-	  aDataOtherMatches = signal(1, maxNumGated, false);//array of angles
-	  vDataOtherMatches = signal(1, maxNumGated, false);//array of velocities
-	  isUsedDataOtherMatches = signal(1, maxNumGated, false);
-	  isMatchedDataOtherMatches = signal(1, maxNumGated, false);
-	  idsDataOtherMatches = signal(1, maxNumGated, false);
-    
-	  //tracking parameters
-	  dt = 1;//s
-	  maxVel = 2;//m/s
-	  minVel = 0.1;//m/s
-	  kMatches = 1;//how many updated Kalman states can be created from single one with measurements close enough to estimation
-	  trueTrackThreshold = 1.5;//match factor defining, what is considered true track, less is for less false tracks
-	  removeTrackThreshold = 10;//factor defining, threshold for track removal, less is for faster tracks removal
-	  minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
-	  minAgeToDisplayTangental = 3;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
+	//out(numOfTracks);
+	timestampso = timestamps;
 
-	  matchingVelocityThreshold = 0.5;//0.8 means within 80%
-	  matchingPositionThreshold = 1;
-	  
-	  //R = 5*eye(3);//sensor noise for r, a, v and vy, should optimize this, smaller number means believing measurement more than model
-	  //R(2,2) = 10;
-	  R = matrix(3,3);
-	  R = 0;
-	  set_matrix(R,0,0, 0.75);
-	  set_matrix(R,1,1, 0.75);
-	  set_matrix(R,2,2, 12); //angle estimation is most noisy
-	  rr11 = 1.5*get_matrix(R, 0,0); //value against which the track distance covariance is compared
-	  rr33 = 1.5*get_matrix(R, 2,2);//value against which the track angle covariance is compared
-	    
-	  //Q = 0.05*eye(6);//process noise for Kalman filter estimation, smaller number means believing model more than measurement
-	  Q = matrix(4,4);
-	  Q  = 0;
-	  set_matrix(Q,0,0,1.05);
-	  set_matrix(Q,1,1,1.05);
-	  set_matrix(Q,2,2,1.05);
-	  set_matrix(Q,3,3,1.05);
-	  //set_matrix(Q,4,4,0.05);
-	  //set_matrix(Q,5,5,0.05);
-	  
-	  //Pinit = 5*eye(6);//initial covariance matrix for track, smaller means we believe first measurement more
-	  //Pinit(1,1) = 2;//smaller value for distance
-	  Pinit = matrix(4,4);
-	  Pinit = 0;
-	  set_matrix(Pinit,0,0,2);
-	  set_matrix(Pinit,1,1,2);
-	  set_matrix(Pinit,2,2,10);
-	  set_matrix(Pinit,3,3,5);
-	  //set_matrix(Pinit,4,4,5);
-	  //set_matrix(Pinit,5,5,5);
-	  
-	  //H is 3x4 observation matrix, since three variables are observed
-	  H = matrix(3,4);
-	  H = 0;
-	  set_matrix(H,0,0,1);
-	  set_matrix(H,1,1,1);
-	  set_matrix(H,2,2,1);
+	//list of gated tracks
+	maxNumGated = 20;
 
-	  sqMaxVel = maxVel*maxVel;//square of velocity for position comparison
-	  sqMinVel = minVel*minVel;//square of velocity for position comparison 
-	  
-	  //print_line("In processing number of tracks ", numOfTracks);
-	  for (tr = 0; tr <numOfTracks; tr = tr + 1)
-	  {
-		    //1) crude gate (by max velocity)
-		    numGated = 0;
-		    //currentTrack = currentTracks(tr);
-		    range = x11[tr];
-		    angle = x31[tr];
-		    //print_line("Examining track ",  range, " ",  x21[tr], " ", angle, " ",  x41[tr]);
+	numGated = 0;
 
-		    xtrack = range * sin(angle * pi() / 180);
-		    ytrack = range * cos(angle * pi() / 180);
+	rDataGated = signal(1, maxNumGated, false);//array of distances
+	aDataGated = signal(1, maxNumGated, false);//array of angles
+	vDataGated = signal(1, maxNumGated, false);//array of velocities
 
-		    for (dp=0; dp < numOfData; dp = dp + 1)
-		    {      
-			      x = rData[dp] * sin(aData[dp] * pi() / 180);
-			      y = rData[dp] * cos(aData[dp] * pi() / 180);
+	isUsedDataGated = signal(1, maxNumGated, false);
+	isMatchedDataGated = signal(1, maxNumGated, false);
+	idsDataGated = signal(1, maxNumGated, false);
 
-			      distanceSq = (xtrack - x)*(xtrack - x) + (ytrack - y)*(ytrack - y);
-			      if (distanceSq < sqMaxVel*dt*dt)
-			      {
-					if (numGated < maxNumGated)
+	numOtherMatches = 0;
+
+	rDataOtherMatches = signal(1, maxNumGated, false);//array of distances
+	aDataOtherMatches = signal(1, maxNumGated, false);//array of angles
+	vDataOtherMatches = signal(1, maxNumGated, false);//array of velocities
+	isUsedDataOtherMatches = signal(1, maxNumGated, false);
+	isMatchedDataOtherMatches = signal(1, maxNumGated, false);
+	idsDataOtherMatches = signal(1, maxNumGated, false);
+
+	//tracking parameters
+	dt = 1;//s
+	maxVel = 2;//m/s
+	minVel = 0.1;//m/s
+	kMatches = 1;//how many updated Kalman states can be created from single one with measurements close enough to estimation
+	trueTrackThreshold = 1.5;//match factor defining, what is considered true track, less is for less false tracks
+	removeTrackThreshold = 10;//factor defining, threshold for track removal, less is for faster tracks removal
+	minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
+	minAgeToDisplayTangental = 3;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
+
+	matchingVelocityThreshold = 0.5;//0.8 means within 80%
+	matchingPositionThreshold = 1;
+
+	//R = 5*eye(3);//sensor noise for r, a, v and vy, should optimize this, smaller number means believing measurement more than model
+	//R(2,2) = 10;
+	R = matrix(3,3);
+	R = 0;
+	set_matrix(R,0,0, 0.75);
+	set_matrix(R,1,1, 0.75);
+	set_matrix(R,2,2, 12); //angle estimation is most noisy
+	rr11 = 1.5*get_matrix(R, 0,0); //value against which the track distance covariance is compared
+	rr33 = 1.5*get_matrix(R, 2,2);//value against which the track angle covariance is compared
+
+	//Q = 0.05*eye(6);//process noise for Kalman filter estimation, smaller number means believing model more than measurement
+	Q = matrix(4,4);
+	Q  = 0;
+	set_matrix(Q,0,0,1.05);
+	set_matrix(Q,1,1,1.05);
+	set_matrix(Q,2,2,1.05);
+	set_matrix(Q,3,3,1.05);
+	//set_matrix(Q,4,4,0.05);
+	//set_matrix(Q,5,5,0.05);
+
+	//Pinit = 5*eye(6);//initial covariance matrix for track, smaller means we believe first measurement more
+	//Pinit(1,1) = 2;//smaller value for distance
+	Pinit = matrix(4,4);
+	Pinit = 0;
+	set_matrix(Pinit,0,0,2);
+	set_matrix(Pinit,1,1,2);
+	set_matrix(Pinit,2,2,10);
+	set_matrix(Pinit,3,3,5);
+	//set_matrix(Pinit,4,4,5);
+	//set_matrix(Pinit,5,5,5);
+
+	//H is 3x4 observation matrix, since three variables are observed
+	H = matrix(3,4);
+	H = 0;
+	set_matrix(H,0,0,1);
+	set_matrix(H,1,1,1);
+	set_matrix(H,2,2,1);
+
+	sqMaxVel = maxVel*maxVel;//square of velocity for position comparison
+	sqMinVel = minVel*minVel;//square of velocity for position comparison 
+
+	//print_line("In processing number of tracks ", numOfTracks);
+	for (tr = 0; tr <numOfTracks; tr = tr + 1)
+	{
+		//1) crude gate (by max velocity)
+		numGated = 0;
+		//currentTrack = currentTracks(tr);
+		range = x11[tr];
+		angle = x31[tr];
+		//print_line("Examining track ",  range, " ",  x21[tr], " ", angle, " ",  x41[tr]);
+
+		xtrack = range * sin(angle * pi() / 180);
+		ytrack = range * cos(angle * pi() / 180);
+
+		for (dp=0; dp < numOfData; dp = dp + 1)
+		{      
+			x = rData[dp] * sin(aData[dp] * pi() / 180);
+			y = rData[dp] * cos(aData[dp] * pi() / 180);
+
+			distanceSq = (xtrack - x)*(xtrack - x) + (ytrack - y)*(ytrack - y);
+			if (distanceSq < sqMaxVel*dt*dt)
+			{
+				if (numGated < maxNumGated)
+				{
+					rDataGated[numGated] = rData[dp];
+					aDataGated[numGated] = aData[dp];
+					vDataGated[numGated] = vData[dp];
+					isUsedDataGated[numGated]  = isUsedData[dp];
+					isMatchedDataGated[numGated]  = isMatchedData[dp];
+					idsDataGated[numGated] = idsData[dp];
+
+					numGated  = numGated + 1;
+				}
+			}
+		}
+		//print_line("Gated measurments found ", numGated);
+
+
+		//gatedMeasurements = length(gated);
+
+		//2) find best matching update
+		numOtherMatches = 0;
+
+
+		//cluster close points
+		g = 0;//1 in Octave
+		while (g < numGated)
+		{
+			x = rDataGated[g] * sin(aDataGated[g] * pi() / 180);
+			y = rDataGated[g] * cos(aDataGated[g] * pi() / 180);
+
+			gg = g+1;
+			while (gg < numGated)
+			{
+				x2 = rDataGated[gg] * sin(aDataGated[gg] * pi() / 180);
+				y2 = rDataGated[gg] * cos(aDataGated[gg] * pi() / 180);
+
+				dposSq = (x2 - x)*(x2 - x) + (y2 - y)*(y2 - y);
+				velRatio = vDataGated[g] / (vDataGated[gg] + 0.1);
+				velMatches = (velRatio > 0) or ((abs(vDataGated[g]) < 0.2) and (abs(vDataGated[gg]) < 0.2));
+				if ((dposSq < matchingPositionThreshold*matchingPositionThreshold) and velMatches)
+				{					  
+					rDataGated[g] = (rDataGated[g]+rDataGated[gg])/2;
+					aDataGated[g] = (aDataGated[g]+aDataGated[gg])/2;
+					vDataGated[g] = (vDataGated[g]+vDataGated[gg])/2;
+
+					if (gg + 1 > numGated)
 					{
-						  rDataGated[numGated] = rData[dp];
-						  aDataGated[numGated] = aData[dp];
-						  vDataGated[numGated] = vData[dp];
-						  isUsedDataGated[numGated]  = isUsedData[dp];
-						  isMatchedDataGated[numGated]  = isMatchedData[dp];
-						  idsDataGated[numGated] = idsData[dp];
-						  
-						  numGated  = numGated + 1;
+						lastIndex = numGated - 1;
+						rDataGated[gg] = rDataGated[lastIndex];
+						aDataGated[gg] = aDataGated[lastIndex];
+						vDataGated[gg] = vDataGated[lastIndex];
+						isUsedDataGated[gg] = isUsedDataGated[lastIndex];
+						isMatchedDataGated[gg] = isMatchedDataGated[lastIndex];
+						idsDataGated[gg] = idsDataGated[lastIndex];
+
 					}
-			      }
-		    }
-		    //print_line("Gated measurments found ", numGated);
+					numGated  = numGated - 1;
+				}
+				else
+				{
+					gg = gg+1;
+				}
+			}
+			g = g + 1;
+		}
+		//print_line("close points clustered");
 
-		
-		    //gatedMeasurements = length(gated);
-		
-		    //2) find best matching update
-		    numOtherMatches = 0;
-		
+		xprev = matrix(4,1);
+		set_matrix(xprev, 0, 0, x11[tr]);
+		set_matrix(xprev, 1, 0, x21[tr]);
+		set_matrix(xprev, 2, 0, x31[tr]);
+		set_matrix(xprev, 3, 0, x41[tr]);
 
-		    //cluster close points
-		    g = 0;//1 in Octave
-		    while (g < numGated)
-		    {
-			      x = rDataGated[g] * sin(aDataGated[g] * pi() / 180);
-			      y = rDataGated[g] * cos(aDataGated[g] * pi() / 180);
-		  
-			      gg = g+1;
-			      while (gg < numGated)
-			      {
-					x2 = rDataGated[gg] * sin(aDataGated[gg] * pi() / 180);
-					y2 = rDataGated[gg] * cos(aDataGated[gg] * pi() / 180);
+		//previous covariance
+		P = matrix(4,4);
+		set_matrix(P, 0, 0, p11[tr]);
+		set_matrix(P, 0, 1, p12[tr]);
+		set_matrix(P, 0, 2, p13[tr]);
+		set_matrix(P, 0, 3, p14[tr]);
 
-					dposSq = (x2 - x)*(x2 - x) + (y2 - y)*(y2 - y);
-					velRatio = vDataGated[g] / (vDataGated[gg] + 0.1);
-					velMatches = (velRatio > 0) or ((abs(vDataGated[g]) < 0.2) and (abs(vDataGated[gg]) < 0.2));
-					if ((dposSq < matchingPositionThreshold*matchingPositionThreshold) and velMatches)
-					{					  
-						  rDataGated[g] = (rDataGated[g]+rDataGated[gg])/2;
-						  aDataGated[g] = (aDataGated[g]+aDataGated[gg])/2;
-						  vDataGated[g] = (vDataGated[g]+vDataGated[gg])/2;
-						  
-						  if (gg + 1 > numGated)
-						  {
-							    lastIndex = numGated - 1;
-							    rDataGated[gg] = rDataGated[lastIndex];
-							    aDataGated[gg] = aDataGated[lastIndex];
-							    vDataGated[gg] = vDataGated[lastIndex];
-							    isUsedDataGated[gg] = isUsedDataGated[lastIndex];
-							    isMatchedDataGated[gg] = isMatchedDataGated[lastIndex];
-							    idsDataGated[gg] = idsDataGated[lastIndex];
+		set_matrix(P, 1, 0, p21[tr]);
+		set_matrix(P, 1, 1, p22[tr]);
+		set_matrix(P, 1, 2, p23[tr]);
+		set_matrix(P, 1, 3, p24[tr]);
 
-						  }
-						  numGated  = numGated - 1;
-					}
-					else
+		set_matrix(P, 2, 0, p31[tr]);
+		set_matrix(P, 2, 1, p32[tr]);
+		set_matrix(P, 2, 2, p33[tr]);
+		set_matrix(P, 2, 3, p34[tr]);
+
+		set_matrix(P, 3, 0, p41[tr]);
+		set_matrix(P, 3, 1, p42[tr]);
+		set_matrix(P, 3, 2, p43[tr]);
+		set_matrix(P, 3, 3, p44[tr]);
+
+
+		dt = currentTime - timestamps[tr];
+		//print_line("dt = ", dt);
+		//process matrix
+		A = matrix(4,4);
+		set_matrix(A, 0, 0, 1);
+		set_matrix(A, 0, 1, dt);
+		set_matrix(A, 0, 2, 0);
+		set_matrix(A, 0, 3, 0);
+
+		set_matrix(A, 1, 0, 0);
+		set_matrix(A, 1, 1, 1);
+		set_matrix(A, 1, 2, 0);
+		set_matrix(A, 1, 3, 0);
+
+		set_matrix(A, 2, 0, 0);
+		set_matrix(A, 2, 1, 0);
+		set_matrix(A, 2, 2, 1);
+		set_matrix(A, 2, 3, dt);
+
+		set_matrix(A, 3, 0, 0);
+		set_matrix(A, 3, 1, 0);
+		set_matrix(A, 3, 2, 0);
+		set_matrix(A, 3, 3, 1);
+
+		//prior state Xp = A*X;
+		Xpmat = A*xprev;
+		localx11 = get_matrix(Xpmat, 0, 0);
+		localx21 = get_matrix(Xpmat, 1, 0);
+		localx31 = get_matrix(Xpmat, 2, 0);
+		localx41 = get_matrix(Xpmat, 3, 0);
+		//print_line("Prior state: ", localx11, ", ", localx21, ", ", localx31, ", ", localx41);
+		//print_line("Pp=[", get_matrix(Pp,0, 0), " ", get_matrix(Pp,0, 1), " ", get_matrix(Pp,0, 2), " ", get_matrix(Pp,0, 3), ";");
+		//print_line("       ", get_matrix(Pp,1, 0), " ", get_matrix(Pp,1, 1), " ", get_matrix(Pp,1, 2), " ", get_matrix(Pp,1, 3), ";");
+		//print_line("       ", get_matrix(Pp,2, 0), " ", get_matrix(Pp,2, 1), " ", get_matrix(Pp,2, 2), " ", get_matrix(Pp,2, 3), ";");
+		//print_line("       ", get_matrix(Pp,3, 0), " ", get_matrix(Pp,3, 1), " ", get_matrix(Pp,3, 2), " ", get_matrix(Pp,3, 3), "]");
+		//print_line("after prior state calc");
+
+		//prior covarianc Pp = A*P*A'+ Q;
+		Pp = A*P*transpose(A) + Q;
+		//print_line("after prior covariance calc");
+
+		scaling = p11[tr]/rr11*p33[tr]/rr33;
+		//print_line("Scaling parameter ", scaling);
+
+		bestThreshold = removeTrackThreshold;//any track with better matching should be above this
+		updatedByMeas = false;
+		for (g = 0; g < numGated; g = g + 1)
+		{
+			//measurement z is 3x1 vector
+			z = matrix(3,1);
+			set_matrix(z, 0, 0, rDataGated[g]);
+			set_matrix(z, 1, 0, vDataGated[g]);
+			set_matrix(z, 2, 0, aDataGated[g]);
+			//print_line("Updating with measurement ", rDataGated[g], ", ", vDataGated[g], ", ", aDataGated[g]);
+
+			//Kalman filter update below
+
+			//Innovation Inn=z-H*Xp
+			//out(z, H, xprev);
+			innov = z - H*Xpmat;
+			//print_line("after innovation calc");
+			//print_line("Innovation ", get_matrix(innov, 0,0), " ", get_matrix(innov, 1,0), " ", get_matrix(innov, 2,0));
+
+			//measurement prediction covariance S = H*Pp*H'  + R
+			S = H*Pp*transpose(H) + R;
+			//print_line("after prediction covariance");
+
+			innovationError = transpose(innov)*inverse(S)*innov;
+			//print_line("Mahalanobis distance ", get_matrix(innovationError,0,0), ", best threshold ", bestThreshold);
+
+			if (get_matrix(innovationError,0,0)*scaling < bestThreshold)//best update so far
+			{
+				updatedByMeas = true;
+				//print_line("updating state");
+				bestThreshold = scaling*get_matrix(innovationError,0,0);
+				//Kalman gain K = Pp * H' * inv(S);
+				K = Pp*transpose(H)*inverse(S);
+				//print_line("after Kalman gain calc");
+
+				//Xnew = Xp + K * Inn; //new state
+				Xn = Xpmat + K*innov;
+				//print_line("after state upate");
+				//Pnew = Pp - K * H * Pp;//new covariance
+				P = Pp - K*H*Pp;
+				//print_line("after covariance update");
+
+				x11temp = get_matrix(Xn,0,0);
+				x21temp = get_matrix(Xn,1,0);
+				x31temp = get_matrix(Xn,2,0);
+				x41temp = get_matrix(Xn,3,0);
+
+				p11temp = get_matrix(P,0,0);
+				p12temp = get_matrix(P,0,1);
+				p13temp = get_matrix(P,0,2);
+				p14temp = get_matrix(P,0,3);
+
+				p21temp = get_matrix(P,1,0);
+				p22temp = get_matrix(P,1,1);
+				p23temp = get_matrix(P,1,2);
+				p24temp = get_matrix(P,1,3);
+
+				p31temp = get_matrix(P,2,0);
+				p32temp = get_matrix(P,2,1);
+				p33temp = get_matrix(P,2,2);
+				p34temp = get_matrix(P,2,3);
+
+				p41temp = get_matrix(P,3,0);
+				p42temp = get_matrix(P,3,1);
+				p43temp = get_matrix(P,3,2);
+				p44temp = get_matrix(P,3,3);
+
+				//thresholdsemp = get_matrix(innovationError,0,0);
+				//timestampsTemp = currentTime;
+			}
+
+			if (innovationError < removeTrackThreshold)//update of track is vaid, not necessary best
+			{
+				//print_line("setting measurement as used");
+				isMatchedDataGated[g] = 1;
+				for (dp=0; dp < numOfData; dp = dp + 1)
+				{
+					if (idsData[dp] == idsDataGated[g])
 					{
-						  gg = gg+1;
+						isMatchedData[dp] = 1;
 					}
-			      }
-			      g = g + 1;
-		    }
-		    //print_line("close points clustered");
-		    
-		    xprev = matrix(4,1);
-		    set_matrix(xprev, 0, 0, x11[tr]);
-		    set_matrix(xprev, 1, 0, x21[tr]);
-		    set_matrix(xprev, 2, 0, x31[tr]);
-		    set_matrix(xprev, 3, 0, x41[tr]);
+				}
+			}
+		}
+		timestamps[tr] = currentTime;
+		if (updatedByMeas)
+		{
+			x11[tr] = x11temp;
+			x21[tr] = x21temp;
+			x31[tr] = x31temp;
+			x41[tr] = x41temp;
 
-		    //previous covariance
-		    P = matrix(4,4);
-		    set_matrix(P, 0, 0, p11[tr]);
-		    set_matrix(P, 0, 1, p12[tr]);
-		    set_matrix(P, 0, 2, p13[tr]);
-		    set_matrix(P, 0, 3, p14[tr]);
+			p11[tr] = p11temp;
+			p12[tr] = p12temp;
+			p13[tr] = p13temp;
+			p14[tr] = p13temp;
 
-		    set_matrix(P, 1, 0, p21[tr]);
-		    set_matrix(P, 1, 1, p22[tr]);
-		    set_matrix(P, 1, 2, p23[tr]);
-		    set_matrix(P, 1, 3, p24[tr]);
+			p21[tr] = p21temp;
+			p22[tr] = p22temp;
+			p23[tr] = p23temp;
+			p24[tr] = p24temp;
 
-		    set_matrix(P, 2, 0, p31[tr]);
-		    set_matrix(P, 2, 1, p32[tr]);
-		    set_matrix(P, 2, 2, p33[tr]);
-		    set_matrix(P, 2, 3, p34[tr]);
+			p31[tr] = p31temp;
+			p32[tr] = p32temp;
+			p33[tr] = p33temp;
+			p34[tr] = p34temp;
 
-		    set_matrix(P, 3, 0, p41[tr]);
-		    set_matrix(P, 3, 1, p42[tr]);
-		    set_matrix(P, 3, 2, p43[tr]);
-		    set_matrix(P, 3, 3, p44[tr]);
-		    
-		    
-		    dt = currentTime - timestamps[tr];
-		    //print_line("dt = ", dt);
-		    //process matrix
-		    A = matrix(4,4);
-		    set_matrix(A, 0, 0, 1);
-		    set_matrix(A, 0, 1, dt);
-		    set_matrix(A, 0, 2, 0);
-		    set_matrix(A, 0, 3, 0);
+			p41[tr] = p41temp;
+			p42[tr] = p42temp;
+			p43[tr] = p43temp;
+			p44[tr] = p44temp;
 
-		    set_matrix(A, 1, 0, 0);
-		    set_matrix(A, 1, 1, 1);
-		    set_matrix(A, 1, 2, 0);
-		    set_matrix(A, 1, 3, 0);
+			thresholds[tr] = bestThreshold;
+			ages[tr] = ages[tr] + 1;//dt here is 1
+		}
+		else
+		{
+			x11[tr] = get_matrix(Xpmat,0,0);
+			x21[tr] = get_matrix(Xpmat,1,0);
+			x31[tr] = get_matrix(Xpmat,2,0);
+			x41[tr] = get_matrix(Xpmat,3,0);
 
-		    set_matrix(A, 2, 0, 0);
-		    set_matrix(A, 2, 1, 0);
-		    set_matrix(A, 2, 2, 1);
-		    set_matrix(A, 2, 3, dt);
+			p11[tr] = get_matrix(Pp,0,0);
+			p12[tr] = get_matrix(Pp,0,1);
+			p13[tr] = get_matrix(Pp,0,2);
+			p14[tr] = get_matrix(Pp,0,3);
 
-		    set_matrix(A, 3, 0, 0);
-		    set_matrix(A, 3, 1, 0);
-		    set_matrix(A, 3, 2, 0);
-		    set_matrix(A, 3, 3, 1);
-	      
-		    //prior state Xp = A*X;
-		    Xpmat = A*xprev;
-		    localx11 = get_matrix(Xpmat, 0, 0);
-		    localx21 = get_matrix(Xpmat, 1, 0);
-		    localx31 = get_matrix(Xpmat, 2, 0);
-		    localx41 = get_matrix(Xpmat, 3, 0);
-		    //print_line("Prior state: ", localx11, ", ", localx21, ", ", localx31, ", ", localx41);
-		    //print_line("Pp=[", get_matrix(Pp,0, 0), " ", get_matrix(Pp,0, 1), " ", get_matrix(Pp,0, 2), " ", get_matrix(Pp,0, 3), ";");
-		    //print_line("       ", get_matrix(Pp,1, 0), " ", get_matrix(Pp,1, 1), " ", get_matrix(Pp,1, 2), " ", get_matrix(Pp,1, 3), ";");
-		    //print_line("       ", get_matrix(Pp,2, 0), " ", get_matrix(Pp,2, 1), " ", get_matrix(Pp,2, 2), " ", get_matrix(Pp,2, 3), ";");
-		    //print_line("       ", get_matrix(Pp,3, 0), " ", get_matrix(Pp,3, 1), " ", get_matrix(Pp,3, 2), " ", get_matrix(Pp,3, 3), "]");
-		    //print_line("after prior state calc");
-		    
-		    //prior covarianc Pp = A*P*A'+ Q;
-		    Pp = A*P*transpose(A) + Q;
-		    //print_line("after prior covariance calc");
-		    
-		    scaling = p11[tr]/rr11*p33[tr]/rr33;
-		    //print_line("Scaling parameter ", scaling);
+			p21[tr] = get_matrix(Pp,1,0);
+			p22[tr] = get_matrix(Pp,1,1);
+			p23[tr] = get_matrix(Pp,1,2);
+			p24[tr] = get_matrix(Pp,1,3);
 
-		    bestThreshold = removeTrackThreshold;//any track with better matching should be above this
-		    updatedByMeas = false;
-		    for (g = 0; g < numGated; g = g + 1)
-		    {
-			      //measurement z is 3x1 vector
-			      z = matrix(3,1);
-			      set_matrix(z, 0, 0, rDataGated[g]);
-			      set_matrix(z, 1, 0, vDataGated[g]);
-			      set_matrix(z, 2, 0, aDataGated[g]);
-			      //print_line("Updating with measurement ", rDataGated[g], ", ", vDataGated[g], ", ", aDataGated[g]);
-			
-			      //Kalman filter update below
-			     
-			      //Innovation Inn=z-H*Xp
-			      //out(z, H, xprev);
-			      innov = z - H*Xpmat;
-			      //print_line("after innovation calc");
-			      //print_line("Innovation ", get_matrix(innov, 0,0), " ", get_matrix(innov, 1,0), " ", get_matrix(innov, 2,0));
-			      
-			      //measurement prediction covariance S = H*Pp*H'  + R
-			      S = H*Pp*transpose(H) + R;
-			      //print_line("after prediction covariance");
-			      
-			      innovationError = transpose(innov)*inverse(S)*innov;
-			      //print_line("Mahalanobis distance ", get_matrix(innovationError,0,0), ", best threshold ", bestThreshold);
-			      
-			      if (get_matrix(innovationError,0,0)*scaling < bestThreshold)//best update so far
-			      {
-					updatedByMeas = true;
-					//print_line("updating state");
-					bestThreshold = scaling*get_matrix(innovationError,0,0);
-					//Kalman gain K = Pp * H' * inv(S);
-					K = Pp*transpose(H)*inverse(S);
-					//print_line("after Kalman gain calc");
-					
-					//Xnew = Xp + K * Inn; //new state
-					Xn = Xpmat + K*innov;
-					//print_line("after state upate");
-					//Pnew = Pp - K * H * Pp;//new covariance
-					P = Pp - K*H*Pp;
-					//print_line("after covariance update");
-					
-					x11temp = get_matrix(Xn,0,0);
-					x21temp = get_matrix(Xn,1,0);
-					x31temp = get_matrix(Xn,2,0);
-					x41temp = get_matrix(Xn,3,0);
-					
-					p11temp = get_matrix(P,0,0);
-					p12temp = get_matrix(P,0,1);
-					p13temp = get_matrix(P,0,2);
-					p14temp = get_matrix(P,0,3);
-					
-					p21temp = get_matrix(P,1,0);
-					p22temp = get_matrix(P,1,1);
-					p23temp = get_matrix(P,1,2);
-					p24temp = get_matrix(P,1,3);
-					
-					p31temp = get_matrix(P,2,0);
-					p32temp = get_matrix(P,2,1);
-					p33temp = get_matrix(P,2,2);
-					p34temp = get_matrix(P,2,3);
-					
-					p41temp = get_matrix(P,3,0);
-					p42temp = get_matrix(P,3,1);
-					p43temp = get_matrix(P,3,2);
-					p44temp = get_matrix(P,3,3);
-					
-					//thresholdsemp = get_matrix(innovationError,0,0);
-					//timestampsTemp = currentTime;
-			      }
-			      
-			      if (innovationError < removeTrackThreshold)//update of track is vaid, not necessary best
-			      {
-					//print_line("setting measurement as used");
-					isMatchedDataGated[g] = 1;
-					for (dp=0; dp < numOfData; dp = dp + 1)
-					{
-						  if (idsData[dp] == idsDataGated[g])
-						  {
-							    isMatchedData[dp] = 1;
-						  }
-					}
-			      }
-		    }
-		    timestamps[tr] = currentTime;
-		    if (updatedByMeas)
-		    {
-			      x11[tr] = x11temp;
-			      x21[tr] = x21temp;
-			      x31[tr] = x31temp;
-			      x41[tr] = x41temp;
-					
-			      p11[tr] = p11temp;
-			      p12[tr] = p12temp;
-			      p13[tr] = p13temp;
-			      p14[tr] = p13temp;
-					
-			      p21[tr] = p21temp;
-			      p22[tr] = p22temp;
-			      p23[tr] = p23temp;
-			      p24[tr] = p24temp;
-					
-			      p31[tr] = p31temp;
-			      p32[tr] = p32temp;
-			      p33[tr] = p33temp;
-			      p34[tr] = p34temp;
-					
-			      p41[tr] = p41temp;
-			      p42[tr] = p42temp;
-			      p43[tr] = p43temp;
-			      p44[tr] = p44temp;
-			      
-			      thresholds[tr] = bestThreshold;
-			      ages[tr] = ages[tr] + 1;//dt here is 1
-		    }
-		    else
-		    {
-			      x11[tr] = get_matrix(Xpmat,0,0);
-			      x21[tr] = get_matrix(Xpmat,1,0);
-			      x31[tr] = get_matrix(Xpmat,2,0);
-			      x41[tr] = get_matrix(Xpmat,3,0);
-					
-			      p11[tr] = get_matrix(Pp,0,0);
-			      p12[tr] = get_matrix(Pp,0,1);
-			      p13[tr] = get_matrix(Pp,0,2);
-			      p14[tr] = get_matrix(Pp,0,3);
-					
-			      p21[tr] = get_matrix(Pp,1,0);
-			      p22[tr] = get_matrix(Pp,1,1);
-			      p23[tr] = get_matrix(Pp,1,2);
-			      p24[tr] = get_matrix(Pp,1,3);
-					
-			      p31[tr] = get_matrix(Pp,2,0);
-			      p32[tr] = get_matrix(Pp,2,1);
-			      p33[tr] = get_matrix(Pp,2,2);
-			      p34[tr] = get_matrix(Pp,2,3);
-					
-			      p41[tr] = get_matrix(Pp,3,0);
-			      p42[tr] = get_matrix(Pp,3,1);
-			      p43[tr] = get_matrix(Pp,3,2);
-			      p44[tr] = get_matrix(Pp,3,3);
-			      
-			      if (1.4 > 1 + 0.8/ages[tr])
-			      {
-					thresholds[tr] = thresholds[tr]*1.4 + 0.15;
-			      }
-			      else
-			      {
-					thresholds[tr] =thresholds[tr]*(1 + 0.8/ages[tr]) + 0.15;
-			      }
-		    }
-		    scaledError = thresholds[tr]*p11[tr]/rr11*p33[tr]/rr33;
-		    //print_line("Updated values ", x11[tr], ", ", x21[tr], ", ", x31[tr], ", ", x41[tr]);
-		    //print_line("error=", thresholds[tr], ", covariances ", p11[tr], ", ", p33[tr], " scaled error=", scaledError);
-	  }
-	  //print_line("After update thresholds");
-	  //print_line("");
-	  
-	  
-	  //3) update tracks without detections
-	  tr = 0;
-	  while (tr < numOfTracks)
-	  {
-		    scaledError = thresholds[tr]*p11[tr]/rr11*p33[tr]/rr33;
-		    if (scaledError > removeTrackThreshold)//should remove track
-		    {
-			      if (tr + 1 < numOfTracks)
-			      {
+			p31[tr] = get_matrix(Pp,2,0);
+			p32[tr] = get_matrix(Pp,2,1);
+			p33[tr] = get_matrix(Pp,2,2);
+			p34[tr] = get_matrix(Pp,2,3);
+
+			p41[tr] = get_matrix(Pp,3,0);
+			p42[tr] = get_matrix(Pp,3,1);
+			p43[tr] = get_matrix(Pp,3,2);
+			p44[tr] = get_matrix(Pp,3,3);
+
+			if (1.4 > 1 + 0.8/ages[tr])
+			{
+				thresholds[tr] = thresholds[tr]*1.4 + 0.15;
+			}
+			else
+			{
+				thresholds[tr] =thresholds[tr]*(1 + 0.8/ages[tr]) + 0.15;
+			}
+		}
+		scaledError = thresholds[tr]*p11[tr]/rr11*p33[tr]/rr33;
+		//print_line("Updated values ", x11[tr], ", ", x21[tr], ", ", x31[tr], ", ", x41[tr]);
+		//print_line("error=", thresholds[tr], ", covariances ", p11[tr], ", ", p33[tr], " scaled error=", scaledError);
+	}
+	//print_line("After update thresholds");
+	//print_line("");
+
+
+	//3) update tracks without detections
+	tr = 0;
+	while (tr < numOfTracks)
+	{
+		scaledError = thresholds[tr]*p11[tr]/rr11*p33[tr]/rr33;
+		if (scaledError > removeTrackThreshold)//should remove track
+		{
+			if (tr + 1 < numOfTracks)
+			{
+				lastIndex = numOfTracks - 1;
+				//print_line("Substituting track ", tr, " with ", lastIndex);
+				x11[tr] = x11[lastIndex];
+				x21[tr] = x21[lastIndex];
+				x31[tr] = x31[lastIndex];
+				x41[tr] = x41[lastIndex];
+
+				p11[tr] = p11[lastIndex];
+				p12[tr] = p12[lastIndex];
+				p13[tr] = p13[lastIndex];
+				p14[tr] = p14[lastIndex];
+				p21[tr] = p21[lastIndex];
+				p22[tr] = p22[lastIndex];
+				p23[tr] = p23[lastIndex];
+				p24[tr] = p24[lastIndex];
+				p31[tr] = p31[lastIndex];
+				p32[tr] = p32[lastIndex];
+				p33[tr] = p33[lastIndex];
+				p34[tr] = p34[lastIndex];
+				p41[tr] = p41[lastIndex];
+				p42[tr] = p42[lastIndex];
+				p43[tr] = p43[lastIndex];
+				p44[tr] = p44[lastIndex];
+
+				thresholds[tr] = thresholds[lastIndex];
+				ages[tr] = ages[lastIndex];
+				timeStapms[tr] = timeStamps[lastIndex];
+			}
+			//else
+			//{
+			//tr = tr + 1;
+			//}
+			numOfTracks = numOfTracks - 1;
+		}
+		else
+		{
+			tr = tr + 1;
+		}
+
+	}
+
+	//4) create new tracks
+	for (dp=0; dp < numOfData; dp = dp + 1)
+	{
+		//print_line("Datapoint ", temp1, " ", temp2, " matched " , temp3);
+		if (isMatchedData[dp] < 0.5)//0
+		{
+			//add new track
+			if (numOfTracks < maxTracks)
+			{
+				//print_line("Adding track r=", rData[dp], ", angle=", aData[dp], ", velocity=", vData[dp]);
+				x11[numOfTracks] = rData[dp];
+				x21[numOfTracks] = vData[dp];
+				x31[numOfTracks] = aData[dp];
+				x41[numOfTracks] = 0;
+
+				p11[numOfTracks] = get_matrix(Pinit, 0,0);
+				p12[numOfTracks] = get_matrix(Pinit, 0,1);
+				p13[numOfTracks] = get_matrix(Pinit, 0,2);
+				p14[numOfTracks] = get_matrix(Pinit, 0,3);
+
+				p21[numOfTracks] = get_matrix(Pinit, 1,0);
+				p22[numOfTracks] = get_matrix(Pinit, 1,1);
+				p23[numOfTracks] = get_matrix(Pinit, 1,2);
+				p24[numOfTracks] = get_matrix(Pinit, 1,3);
+
+				p31[numOfTracks] = get_matrix(Pinit, 2,0);
+				p32[numOfTracks] = get_matrix(Pinit, 2,1);
+				p33[numOfTracks] = get_matrix(Pinit, 2,2);
+				p34[numOfTracks] = get_matrix(Pinit, 2,3);
+
+				p41[numOfTracks] = get_matrix(Pinit, 3,0);
+				p42[numOfTracks] = get_matrix(Pinit, 3,1);
+				p43[numOfTracks] = get_matrix(Pinit, 3,2);
+				p44[numOfTracks] = get_matrix(Pinit, 3,3);
+
+				ages[numOfTracks] = dt;
+				thresholds[numOfTracks] = trueTrackThreshold + 0.7*(removeTrackThreshold - trueTrackThreshold);
+
+				numOfTracks = numOfTracks + 1;
+			}
+		}
+
+	}
+
+	//match tracks
+	tr = 0;
+	while (tr < numOfTracks)
+	{
+		tr2 = tr+1;
+		xtrack = x11[tr] * sin(x31[tr] * pi() / 180);
+		ytrack = x11[tr] * cos(x31[tr] * pi() / 180);
+		while (tr2 < numOfTracks)
+		{
+			xtrack2 = x11[tr2] * sin(x31[tr2] * pi() / 180);
+			ytrack2 = x11[tr2] * cos(x31[tr2] * pi() / 180);
+			dpos = sqrt((xtrack2 - xtrack)*(xtrack2 - xtrack) + (ytrack2 - ytrack)*(ytrack2 - ytrack));
+
+			if (abs(x21[tr2]) < 0.01)
+			{
+				additional = 0.1;
+				//print_line("just setting additional");
+			}
+			else
+			{
+				//print_line("calculating additional properly");
+				additional = 0.1*x21[tr2]/abs(x21[tr2]);
+			}
+
+			//print_line("additional ", additional);
+
+			velRatio = x21[tr]/(x21[tr2] + additional);
+			if ((dpos < matchingPositionThreshold) and (velRatio > matchingVelocityThreshold) and (velRatio < 1/matchingVelocityThreshold))
+			{
+				//print_line("Merging tracks: ", x11[tr], ", ", x21[tr], ", ", x31[tr], " with ", x11[tr2], ", ", x21[tr2], ", ", x31[tr2]);
+				//print_line("x1=", xtrack, ", y1=", ytrack, ", x2=", xtrack2, ", y2=", ytrack2, ", dpos=", dpos);
+				x11[tr] = (x11[tr] + x11[tr2])/2;
+				x21[tr] = (x21[tr] + x21[tr2])/2;
+				x31[tr] = (x31[tr] + x31[tr2])/2;
+				x41[tr] = (x41[tr] + x41[tr2])/2;
+
+				if (thresholds[tr] > thresholds[tr2])
+				{
+					thresholds[tr] = thresholds[tr2];
+				}
+				if (ages[tr] < ages[tr2])
+				{
+					ages[tr] = ages[tr2];
+				}
+
+				if (tr2 + 1 < numOfTracks)//not last
+				{
 					lastIndex = numOfTracks - 1;
-					//print_line("Substituting track ", tr, " with ", lastIndex);
-					x11[tr] = x11[lastIndex];
-					x21[tr] = x21[lastIndex];
-					x31[tr] = x31[lastIndex];
-					x41[tr] = x41[lastIndex];
-					
-					p11[tr] = p11[lastIndex];
-					p12[tr] = p12[lastIndex];
-					p13[tr] = p13[lastIndex];
-					p14[tr] = p14[lastIndex];
-					p21[tr] = p21[lastIndex];
-					p22[tr] = p22[lastIndex];
-					p23[tr] = p23[lastIndex];
-					p24[tr] = p24[lastIndex];
-					p31[tr] = p31[lastIndex];
-					p32[tr] = p32[lastIndex];
-					p33[tr] = p33[lastIndex];
-					p34[tr] = p34[lastIndex];
-					p41[tr] = p41[lastIndex];
-					p42[tr] = p42[lastIndex];
-					p43[tr] = p43[lastIndex];
-					p44[tr] = p44[lastIndex];
-					
-					thresholds[tr] = thresholds[lastIndex];
-					ages[tr] = ages[lastIndex];
-					timeStapms[tr] = timeStamps[lastIndex];
-			      }
-			      //else
-			      //{
-					//tr = tr + 1;
-			      //}
-			      numOfTracks = numOfTracks - 1;
-		    }
-		    else
-		    {
-			      tr = tr + 1;
-		    }
+					x11[tr2] = x11[lastIndex];
+					x21[tr2] = x21[lastIndex];
+					x31[tr2] = x31[lastIndex];
+					x41[tr2] = x41[lastIndex];
 
-	  }
+					p11[tr2] = p11[lastIndex];
+					p21[tr2] = p21[lastIndex];
+					p31[tr2] = p31[lastIndex];
+					p41[tr2] = p41[lastIndex];
 
-	  //4) create new tracks
-	  for (dp=0; dp < numOfData; dp = dp + 1)
-	  {
-		    //print_line("Datapoint ", temp1, " ", temp2, " matched " , temp3);
-		    if (isMatchedData[dp] < 0.5)//0
-		    {
-			      //add new track
-			      if (numOfTracks < maxTracks)
-			      {
-					//print_line("Adding track r=", rData[dp], ", angle=", aData[dp], ", velocity=", vData[dp]);
-					x11[numOfTracks] = rData[dp];
-					x21[numOfTracks] = vData[dp];
-					x31[numOfTracks] = aData[dp];
-					x41[numOfTracks] = 0;
-					
-					p11[numOfTracks] = get_matrix(Pinit, 0,0);
-					p12[numOfTracks] = get_matrix(Pinit, 0,1);
-					p13[numOfTracks] = get_matrix(Pinit, 0,2);
-					p14[numOfTracks] = get_matrix(Pinit, 0,3);
-					
-					p21[numOfTracks] = get_matrix(Pinit, 1,0);
-					p22[numOfTracks] = get_matrix(Pinit, 1,1);
-					p23[numOfTracks] = get_matrix(Pinit, 1,2);
-					p24[numOfTracks] = get_matrix(Pinit, 1,3);
-					
-					p31[numOfTracks] = get_matrix(Pinit, 2,0);
-					p32[numOfTracks] = get_matrix(Pinit, 2,1);
-					p33[numOfTracks] = get_matrix(Pinit, 2,2);
-					p34[numOfTracks] = get_matrix(Pinit, 2,3);
-					
-					p41[numOfTracks] = get_matrix(Pinit, 3,0);
-					p42[numOfTracks] = get_matrix(Pinit, 3,1);
-					p43[numOfTracks] = get_matrix(Pinit, 3,2);
-					p44[numOfTracks] = get_matrix(Pinit, 3,3);
-					
-					ages[numOfTracks] = dt;
-					thresholds[numOfTracks] = trueTrackThreshold + 0.7*(removeTrackThreshold - trueTrackThreshold);
-					
-					numOfTracks = numOfTracks + 1;
-			      }
-		    }
+					p12[tr2] = p12[lastIndex];
+					p22[tr2] = p22[lastIndex];
+					p32[tr2] = p32[lastIndex];
+					p42[tr2] = p42[lastIndex];
 
-	  }
+					p13[tr2] = p13[lastIndex];
+					p23[tr2] = p23[lastIndex];
+					p33[tr2] = p33[lastIndex];
+					p43[tr2] = p43[lastIndex];
 
-	  //match tracks
-	  tr = 0;
-	  while (tr < numOfTracks)
-	  {
-		    tr2 = tr+1;
-		    xtrack = x11[tr] * sin(x31[tr] * pi() / 180);
-		    ytrack = x11[tr] * cos(x31[tr] * pi() / 180);
-		    while (tr2 < numOfTracks)
-		    {
-			      xtrack2 = x11[tr2] * sin(x31[tr2] * pi() / 180);
-			      ytrack2 = x11[tr2] * cos(x31[tr2] * pi() / 180);
-			      dpos = sqrt((xtrack2 - xtrack)*(xtrack2 - xtrack) + (ytrack2 - ytrack)*(ytrack2 - ytrack));
-			     
-			      if (abs(x21[tr2]) < 0.01)
-			      {
-					additional = 0.1;
-					//print_line("just setting additional");
-			      }
-			      else
-			      {
-					//print_line("calculating additional properly");
-					additional = 0.1*x21[tr2]/abs(x21[tr2]);
-			      }
-			      
-			      //print_line("additional ", additional);
-			      
-			      velRatio = x21[tr]/(x21[tr2] + additional);
-			      if ((dpos < matchingPositionThreshold) and (velRatio > matchingVelocityThreshold) and (velRatio < 1/matchingVelocityThreshold))
-			      {
-					//print_line("Merging tracks: ", x11[tr], ", ", x21[tr], ", ", x31[tr], " with ", x11[tr2], ", ", x21[tr2], ", ", x31[tr2]);
-					//print_line("x1=", xtrack, ", y1=", ytrack, ", x2=", xtrack2, ", y2=", ytrack2, ", dpos=", dpos);
-					x11[tr] = (x11[tr] + x11[tr2])/2;
-					x21[tr] = (x21[tr] + x21[tr2])/2;
-					x31[tr] = (x31[tr] + x31[tr2])/2;
-					x41[tr] = (x41[tr] + x41[tr2])/2;
-					
-					if (thresholds[tr] > thresholds[tr2])
-					{
-						  thresholds[tr] = thresholds[tr2];
-					}
-					if (ages[tr] < ages[tr2])
-					{
-						  ages[tr] = ages[tr2];
-					}
-					
-					if (tr2 + 1 < numOfTracks)//not last
-					{
-						  lastIndex = numOfTracks - 1;
-						  x11[tr2] = x11[lastIndex];
-						  x21[tr2] = x21[lastIndex];
-						  x31[tr2] = x31[lastIndex];
-						  x41[tr2] = x41[lastIndex];
-						  
-						  p11[tr2] = p11[lastIndex];
-						  p21[tr2] = p21[lastIndex];
-						  p31[tr2] = p31[lastIndex];
-						  p41[tr2] = p41[lastIndex];
-						  
-						  p12[tr2] = p12[lastIndex];
-						  p22[tr2] = p22[lastIndex];
-						  p32[tr2] = p32[lastIndex];
-						  p42[tr2] = p42[lastIndex];
-						  
-						  p13[tr2] = p13[lastIndex];
-						  p23[tr2] = p23[lastIndex];
-						  p33[tr2] = p33[lastIndex];
-						  p43[tr2] = p43[lastIndex];
-						  
-						  p14[tr2] = p14[lastIndex];
-						  p24[tr2] = p24[lastIndex];
-						  p34[tr2] = p34[lastIndex];
-						  p44[tr2] = p44[lastIndex];
-						  
-						  timestamps[tr2] = timestamps[lastIndex];
-						  ages[tr2] = ages[lastIndex];
-						  thresholds[tr2] = thresholds[lastIndex];
-					}
+					p14[tr2] = p14[lastIndex];
+					p24[tr2] = p24[lastIndex];
+					p34[tr2] = p34[lastIndex];
+					p44[tr2] = p44[lastIndex];
 
-					numOfTracks = numOfTracks - 1;
-			      }
-			      else
-			      {
-					tr2 = tr2+1;
-			      }
-		    }
+					timestamps[tr2] = timestamps[lastIndex];
+					ages[tr2] = ages[lastIndex];
+					thresholds[tr2] = thresholds[lastIndex];
+				}
 
-		    tr = tr + 1;
-	  }
-      
+				numOfTracks = numOfTracks - 1;
+			}
+			else
+			{
+				tr2 = tr2+1;
+			}
+		}
+
+		tr = tr + 1;
+	}
+
 }
