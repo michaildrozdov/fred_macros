@@ -77,7 +77,7 @@
 	set_matrix(H,2,2,1);
 
 	sqMaxVel = maxVel*maxVel;//square of velocity for position comparison
-	sqMinVel = minVel*minVel;//square of velocity for position comparison 
+	sqMinVel = minVel*minVel;//square of velocity for position comparison
 
 	//print_line("In processing number of tracks ", numOfTracks);
 	for (tr = 0; tr <numOfTracks; tr = tr + 1)
@@ -93,7 +93,7 @@
 		ytrack = range * cos(angle * pi() / 180);
 
 		for (dp=0; dp < numOfData; dp = dp + 1)
-		{      
+		{
 			x = rData[dp] * sin(aData[dp] * pi() / 180);
 			y = rData[dp] * cos(aData[dp] * pi() / 180);
 
@@ -139,7 +139,7 @@
 				velRatio = vDataGated[g] / (vDataGated[gg] + 0.1);
 				velMatches = (velRatio > 0) or ((abs(vDataGated[g]) < 0.2) and (abs(vDataGated[gg]) < 0.2));
 				if ((dposSq < matchingPositionThreshold*matchingPositionThreshold) and velMatches)
-				{					  
+				{
 					rDataGated[g] = (rDataGated[g]+rDataGated[gg])/2;
 					aDataGated[g] = (aDataGated[g]+aDataGated[gg])/2;
 					vDataGated[g] = (vDataGated[g]+vDataGated[gg])/2;
