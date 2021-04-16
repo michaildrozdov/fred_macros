@@ -362,7 +362,8 @@ For(ii=N1;ii<N2;ii=ii+1)
 nextchannellabel:
 	}
 	r6 = hitMaximums; // hit maximums number point number respons
-	r2=0; r4=r2; Sr15=r2;	r5=r2; r3=r2; Sr3=r2;
+	r2 = hitMaximums; r2 = 0;
+	r4=r2; Sr15=r2;	r5=r2; r3=r2; Sr3=r2;
 	Sr15=hitMaximums; Sr15=0;
 	TagN=0;
 	TagU=0;
