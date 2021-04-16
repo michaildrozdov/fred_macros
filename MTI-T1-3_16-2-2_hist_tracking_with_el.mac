@@ -607,7 +607,7 @@ stopwallend:
 		    histEntryAz = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
 		    histEntryEl = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
 
-		    Step = frameIndex; //Number of speed calculation cycle
+		    Step = frameIndex + 1; //Number of speed calculation cycle
 		    //Print_line("Ch",CH+1,"   Step=",Step,"  ",ii );
 		    for(it=0; it<TagUs; it=it+1)
 		    { 
