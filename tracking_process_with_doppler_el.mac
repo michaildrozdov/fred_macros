@@ -1,4 +1,4 @@
-() = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime)
+(newLastTrackId) = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime, idsTracks, lastTrackId)
 {
 	  //out(numOfTracks);
 	  timestampso = timestamps;
@@ -517,6 +517,7 @@
 					thresholds[tr] = thresholds[lastIndex];
 					ages[tr] = ages[lastIndex];
 					timeStapms[tr] = timeStamps[lastIndex];
+					idsTracks[tr] = idsTracks[lastIndex];
 			      }
 			      //else
 			      //{
@@ -578,6 +579,8 @@
 					//p44[numOfTracks] = get_matrix(Pinit, 3,3);
 					
 					ages[numOfTracks] = dt;
+					idsTracks[numOfTracks] = lastTrackId;
+					lastTrackId = lastTrackId + 1;
 					thresholds[numOfTracks] = trueTrackThreshold + 0.7*(removeTrackThreshold - trueTrackThreshold);
 					
 					numOfTracks = numOfTracks + 1;
@@ -646,6 +649,10 @@
 					{
 						  ages[tr] = ages[tr2];
 					}
+					if (idsTracks[tr2] < idsTracks[tr])
+					{
+						idsTracks[tr] = idsTracks[tr2];
+					}
 					
 					if (tr2 + 1 < numOfTracks)//not last
 					{
@@ -684,6 +691,7 @@
 						  timestamps[tr2] = timestamps[lastIndex];
 						  ages[tr2] = ages[lastIndex];
 						  thresholds[tr2] = thresholds[lastIndex];
+						  idsTracks[tr2] = idsTracks[lastIndex];
 					}
 
 					numOfTracks = numOfTracks - 1;
@@ -696,4 +704,5 @@
 
 		    tr = tr + 1;
 	  }
+	  newLastTrackId = lastTrackId;
 }

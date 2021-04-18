@@ -42,6 +42,7 @@ azHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaut
 azHistStep = 2; // Angle step in the angle histogram, degrees
 elHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaution of angle histogram, degrees
 elHistStep = 2; // Angle step in the angle histogram, degrees
+coordMemorySize = 7; // How many coordinate measurements should be averaged to get a final value
 
 //GUI parametes
 Range = 30;                  // m
@@ -141,6 +142,9 @@ covariances = 0;
 thresholds = signal(1, maxTracks, false);
 ages = signal(1, maxTracks, false);
 isValidatedArray = signal(1, maxTracks, false);
+idsTracks = signal(1, maxTracks, false);
+idsTracks = 0;
+lastTrackId = 0;
 
 rData = signal(1, maxData, false);//array of distances
 vData = signal(1, maxData, false);//array of velocities
@@ -160,6 +164,25 @@ minVel = 0.1;//m/s
 minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
 minAgeToDisplayTangental = 4;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
 //end of tracking igh level params
+
+//Tracks history for the averaging
+maxNumOfTraces = maxTracks; // It may be different
+curNumOfTraces = 0;
+rHistory = matrix(maxNumOfTraces, coordMemorySize + 1); // +1 to avoid bund check
+vHistory = matrix(maxNumOfTraces, coordMemorySize + 1);
+azHistory = matrix(maxNumOfTraces, coordMemorySize + 1);
+elHistory = matrix(maxNumOfTraces, coordMemorySize + 1);
+measurementsInMemory = signal(1, maxNumOfTraces, false);
+memoryUpdatedFlags = signal(1, maxNumOfTraces, false); // To remove old traces
+idsInMemory = signal(1, maxNumOfTraces, false);
+
+rHistory = 0;
+vHistory = 0;
+azHistory = 0;
+elHistory = 0;
+measurementsInMemory = 0;
+idsInMemory = 0;
+//end of tracks history
 
 //Calculated parameters
 Tc =T+P;                       // Chirp period, ms
@@ -761,11 +784,26 @@ early4:
 			}
 
 			//Kalman filter based tracking update
-			() = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime);
+			(newLastTrackId) = tracking_process_with_doppler_el(timestamps, states, covariances, thresholds, ages, numOfTracks, maxTracks, rData, aData, eData, vData, isUsedData, isMatchedData, idsData, numOfData, currentTime, idsTracks, lastTrackId);
 			//print_line("Number of tracks after update ", numOfTracks);
+			lastTrackId = newLastTrackId;
 
+			memoryUpdatedFlags = 0;
 			for (tr = 0; tr < numOfTracks; tr = tr + 1)
 			{
+				traceNum = -1;
+				traceFound = false;
+				for (trace = 0; trace < curNumOfTraces; trace = trace + 1)
+				{
+					//print_line("Checking the existence of a trace with ID ", idsTracks[tr], ". Current trace ID ", idsInMemory[trace]);
+					if (idsTracks[tr] == idsInMemory[trace])
+					{
+						  traceNum = trace;
+						  traceFound = true;
+						  memoryUpdatedFlags[trace] = 1;
+						  //print_line("Trace found");
+					}
+				}
 				if (thresholds[tr]/ages[tr] > trueTrackThreshold)
 				{
 					//print_line("Track didn't pass by precision ", thresholds[tr]);
@@ -799,19 +837,19 @@ early4:
 
 				if (vel < minVel)
 				{
-					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					//print_line("Track ID=", idsTracks[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
 					goto endofloop;
 				}
 
 				if (vel > maxVel)
 				{
-					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					//print_line("Track ID=", idsTracks[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
 					goto endofloop;
 				}
 
 				if (ages[tr] < minAgeToDisplayRadial)
 				{
-					//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+					//print_line("Track ID=", idsTracks[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
 					goto endofloop;
 				}
 
@@ -820,16 +858,129 @@ early4:
 				{
 					if (ages[tr] < minAgeToDisplayTangental)
 					{
-						//print_line("Track ID=", idsdata[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
+						//print_line("Track ID=", idsTracks[tr], ", R=", x11[tr], ", v=", x21[tr], ", az=", x31[tr], ", inactive, error value=", thresholds[tr]);
 						goto endofloop;
 					}
 				}
 				//print_line("Have valid track at position ", x, ", ", y, " and velocity ", vx, ", ", vy);
-				print_line(Step, ", Track ID=", idsdata[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
+				print_line(Step, ", Track ID=", idsTracks[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
 				print_line("In Cartesian: ", xtrack, " ", ytrack, " ", ztrack);
+				meanRValue = 0;
+				meanVValue = 0;
+				meanAzValue = 0;
+				meanElValue = 0;
+				measuredTimes = 0;
 
+				if (traceFound)
+				{
+					//Memory update
+					currentRHistory = get_matrix_row(rHistory, traceNum);
+					currentVHistory = get_matrix_row(vHistory, traceNum);
+					currentAzHistory = get_matrix_row(azHistory, traceNum);
+					currentElHistory = get_matrix_row(elHistory, traceNum);
+						  
+					for (memNum = measurementsInMemory[traceNum]; memNum > 0; memNum = memNum - 1) // Does not go to 0
+					{
+						meanRValue = meanRValue + currentRHistory[memNum - 1];
+						meanVValue = meanVValue + currentVHistory[memNum - 1];
+						meanAzValue = meanAzValue + currentAzHistory[memNum - 1];
+						meanElValue = meanElValue + currentElHistory[memNum - 1];
+							    
+						currentRHistory[memNum] = currentRHistory[memNum - 1];
+						currentVHistory[memNum] = currentVHistory[memNum - 1];
+						currentAzHistory[memNum] = currentAzHistory[memNum - 1];
+						currentElHistory[memNum] = currentElHistory[memNum - 1];
+					}
+					currentRHistory[0] = range;
+					currentVHistory[0] = velocity;
+					currentAzHistory[0] = azimuth;
+					currentElHistory[0] = elevation;
+						  
+					meanRValue = meanRValue + range;
+					meanVValue = meanVValue + velocity;
+					meanAzValue = meanAzValue + azimuth;
+					meanElValue = meanElValue + elevation;
+						  
+					if (measurementsInMemory[traceNum] < coordMemorySize)
+					{
+						measurementsInMemory[traceNum] = measurementsInMemory[traceNum] + 1;
+					}
+					measuredTimes = measurementsInMemory[traceNum];
+					meanRValue = meanRValue / measuredTimes;
+					meanVValue = meanVValue / measuredTimes;
+					meanAzValue = meanAzValue / measuredTimes;
+					meanElValue = meanElValue / measuredTimes;
+						  
+					set_matrix_row(rHistory, traceNum, currentRHistory);
+					set_matrix_row(vHistory, traceNum, currentVHistory);
+					set_matrix_row(azHistory, traceNum, currentAzHistory);
+					set_matrix_row(elHistory, traceNum, currentElHistory);
+
+					goto aftertraces; // break
+				}
+
+aftertraces:
+				if (traceFound) // Just display the result of the averaging
+				{
+					print_line("Averaged values: R=", meanRValue, ", v=", meanVValue, ", az=", meanAzValue, ", el=", meanElValue, ". Calculated from ", measuredTimes, " measurements.");
+				}
+				else
+				{
+					// This is a new trace
+					if (curNumOfTraces < maxNumOfTraces)
+					{
+						  currentRHistory = get_matrix_row(rHistory, curNumOfTraces);
+						  currentVHistory = get_matrix_row(vHistory, curNumOfTraces);
+						  currentAzHistory = get_matrix_row(azHistory, curNumOfTraces);
+						  currentElHistory = get_matrix_row(elHistory, curNumOfTraces);
+						  
+						  // Reset whatever was there
+						  currentRHistory = 0;
+						  currentVHistory = 0;
+						  currentAzHistory = 0;
+						  currentElHistory = 0;
+						  
+						  //Add the only valid measurement
+						  currentRHistory[0] = range;
+						  currentVHistory[0] = velocity;
+						  currentAzHistory[0] = azimuth;
+						  currentElHistory[0] = elevation;
+						  
+						  set_matrix_row(rHistory, curNumOfTraces, currentRHistory);
+						  set_matrix_row(vHistory, curNumOfTraces, currentVHistory);
+						  set_matrix_row(azHistory, curNumOfTraces, currentAzHistory);
+						  set_matrix_row(elHistory, curNumOfTraces, currentElHistory);
+						  
+						  measurementsInMemory[curNumOfTraces] = 1;
+						  memoryUpdatedFlags[curNumOfTraces] = 1;
+						  idsInMemory[curNumOfTraces] = idsTracks[tr];
+						  curNumOfTraces = curNumOfTraces + 1;
+						  print_line("This is the first measurement for this track ID. Mean values match current values.");
+					}
+				}
 endofloop:
 				//print_line("end of loop");
+			}
+			
+			// Need to remove traces of tracks which were already deleted
+			trace = 0;
+			while (trace < curNumOfTraces)
+			{
+				if (memoryUpdatedFlags[trace] < 1)
+				{
+					print_line("Removing the trace with ID ", idsInMemory[trace]);
+					set_matrix_row(rHistory, trace, get_matrix_row(rHistory, curNumOfTraces - 1));
+					set_matrix_row(vHistory, trace, get_matrix_row(vHistory, curNumOfTraces - 1));
+					set_matrix_row(azHistory, trace, get_matrix_row(azHistory, curNumOfTraces - 1));
+					set_matrix_row(elHistory, trace, get_matrix_row(elHistory, curNumOfTraces - 1));
+					
+					measurementsInMemory[trace] = measurementsInMemory[curNumOfTraces - 1];
+					curNumOfTraces = curNumOfTraces - 1;
+				}
+				else
+				{
+					trace = trace + 1;
+				}
 			}
 
 			currentTime = currentTime + perFrame*(T+P)/1000; //T+P should be approx. 11 ms with current implementation
