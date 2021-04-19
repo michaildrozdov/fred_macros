@@ -880,12 +880,7 @@ early4:
 					currentElHistory = get_matrix_row(elHistory, traceNum);
 						  
 					for (memNum = measurementsInMemory[traceNum]; memNum > 0; memNum = memNum - 1) // Does not go to 0
-					{
-						meanRValue = meanRValue + currentRHistory[memNum - 1];
-						meanVValue = meanVValue + currentVHistory[memNum - 1];
-						meanAzValue = meanAzValue + currentAzHistory[memNum - 1];
-						meanElValue = meanElValue + currentElHistory[memNum - 1];
-							    
+					{	    
 						currentRHistory[memNum] = currentRHistory[memNum - 1];
 						currentVHistory[memNum] = currentVHistory[memNum - 1];
 						currentAzHistory[memNum] = currentAzHistory[memNum - 1];
@@ -895,15 +890,19 @@ early4:
 					currentVHistory[0] = velocity;
 					currentAzHistory[0] = azimuth;
 					currentElHistory[0] = elevation;
-						  
-					meanRValue = meanRValue + range;
-					meanVValue = meanVValue + velocity;
-					meanAzValue = meanAzValue + azimuth;
-					meanElValue = meanElValue + elevation;
-						  
+					  
 					if (measurementsInMemory[traceNum] < coordMemorySize)
 					{
 						measurementsInMemory[traceNum] = measurementsInMemory[traceNum] + 1;
+					}
+					
+					for (memNum = 0; memNum < measurementsInMemory[traceNum]; memNum = memNum + 1)
+					{
+						//print_line("Adding ", currentRHistory[memNum], " to the mean.");
+						meanRValue = meanRValue + currentRHistory[memNum];
+						meanVValue = meanVValue + currentVHistory[memNum];
+						meanAzValue = meanAzValue + currentAzHistory[memNum];
+						meanElValue = meanElValue + currentElHistory[memNum];
 					}
 					measuredTimes = measurementsInMemory[traceNum];
 					meanRValue = meanRValue / measuredTimes;
