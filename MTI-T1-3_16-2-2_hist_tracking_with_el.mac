@@ -53,8 +53,8 @@ TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 
 // Position of each TX in the array
 TX_pos = signal(1, 4, false);
-TX_pos[0] = 0; // TX 1
-TX_pos[1] = 1; // TX 2
+TX_pos[0] = 1; // TX 1
+TX_pos[1] = 0; // TX 2
 TX_pos[2] = 3; // TX 3
 Tx_pos[3] = 2; // TX 4
 txesSelected = 0;
