@@ -349,6 +349,11 @@ for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
 				ch_1[i] = s1[i * Nch + chNum];
 			}
 			set_matrix_row(chMat, chNum, ch_1);
+
+			if (chNum == Ch)
+			{
+				// sending ch_1 to GUI
+			}
 		}
 
 		if ((ii == 0 ) and (frameIndex == 0))
