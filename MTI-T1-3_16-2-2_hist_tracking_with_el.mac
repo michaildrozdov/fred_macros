@@ -431,7 +431,7 @@ stopwallend:
 				ph1=phase(spectr_1);
 				//ph=phase(spectr);                                              //
 				set_matrix_row(ph1Matrix,ie,ph1);
-				set_label(r9,(pointsToView/2+1)/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
+				set_label(r9, pointsToView/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
 			}
 
 			targetSignal = averaged;
