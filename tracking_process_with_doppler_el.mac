@@ -29,7 +29,7 @@
     
 	  //tracking parameters
 	  dt = 1;//frames
-	  maxVel = 3;//m/frame
+	  maxVel = 10;//m/frame
 	  minVel = 0.1;//m/s
 	  kMatches = 1;//how many updated Kalman states can be created from single one with measurements close enough to estimation
 	  trueTrackThreshold = 1.5;//match factor defining, what is considered true track, less is for less false tracks
@@ -44,13 +44,13 @@
 	  //R(2,2) = 10;
 	  R = matrix(4,4);
 	  R = 0;
-	  set_matrix(R,0,0, 0.15);
-	  set_matrix(R,1,1, 0.15);
-	  set_matrix(R,2,2, 20); //az angle estimation is very noisy
-	  set_matrix(R,3,3, 40); //el angle estimation is most noisy
-	  rr11 = get_matrix(R, 0,0); //value against which the track distance covariance is compared
-	  rr33 = get_matrix(R, 2,2);//value against which the track angle covariance is compared
-	  rr44 = get_matrix(R, 3,3);//value against which the track angle covariance is compared
+	  set_matrix(R,0,0, 0.3);
+	  set_matrix(R,1,1, 0.3);
+	  set_matrix(R,2,2, 10); //az angle estimation is very noisy
+	  set_matrix(R,3,3, 20); //el angle estimation is most noisy
+	  //rr11 = get_matrix(R, 0,0); //value against which the track distance covariance is compared
+	  //rr33 = get_matrix(R, 2,2);//value against which the track angle covariance is compared
+	  //rr44 = get_matrix(R, 3,3);//value against which the track angle covariance is compared
 	    
 	  //Q = 0.05*eye(6);//process noise for Kalman filter estimation, smaller number means believing model more than measurement
 	  Q = matrix(6,6);
@@ -68,10 +68,13 @@
 	  Pinit = 0;
 	  set_matrix(Pinit,0,0,2);
 	  set_matrix(Pinit,1,1,2);
-	  set_matrix(Pinit,2,2,20);
+	  set_matrix(Pinit,2,2,10);
 	  set_matrix(Pinit,3,3,10);
-	  set_matrix(Pinit,4,4,40);
+	  set_matrix(Pinit,4,4,20);
 	  set_matrix(Pinit,5,5,10);
+	  rr11 = 0.5*get_matrix(Pinit, 0,0); //value against which the track distance covariance is compared
+	  rr33 = get_matrix(Pinit, 2,2);//value against which the track angle covariance is compared
+	  rr44 = get_matrix(Pinit, 4,4);//value against which the track angle covariance is compared
 	  
 	  //H is 3x4 observation matrix, since three variables are observed
 	  H = matrix(4,6);
@@ -107,7 +110,8 @@
 
 			      distanceSq = (xtrack - x)*(xtrack - x) + (ytrack - y)*(ytrack - y) +  (ztrack - z)*(ztrack - z);
 			      //An additional requirement of small displacement along the z dimension
-			      if ((distanceSq < sqMaxVel*dt*dt) and ((ztrack - z)*(ztrack - z) < sqMaxVel*dt*dt/9))
+			      //print_line("Checking gate: distanceSq ", distanceSq, ", ztrack ", ztrack, ", z ", z);
+			      if ((distanceSq < sqMaxVel) and ((ztrack - z)*(ztrack - z) < sqMaxVel/1800))
 			      {
 					if (numGated < maxNumGated)
 					{
@@ -481,6 +485,7 @@
 		    if (scaledError > removeTrackThreshold)//should remove track
 		    {
 			      //print_line("Removing ", get_matrix(states, tr, 0), ", ", get_matrix(states, tr, 1), ", ", get_matrix(states, tr, 2), ", ", get_matrix(states, tr, 3), ", ", get_matrix(states, tr, 4), ", ", get_matrix(states, tr, 5));
+			      //print_line("With scaled error ", scaledError, " (non-scaaled ",  thresholds[tr], ")");
 			      if (tr + 1 < numOfTracks)
 			      {
 					lastIndex = numOfTracks - 1;
