@@ -111,7 +111,7 @@
 			      distanceSq = (xtrack - x)*(xtrack - x) + (ytrack - y)*(ytrack - y) +  (ztrack - z)*(ztrack - z);
 			      //An additional requirement of small displacement along the z dimension
 			      //print_line("Checking gate: distanceSq ", distanceSq, ", ztrack ", ztrack, ", z ", z);
-			      if ((distanceSq < sqMaxVel) and ((ztrack - z)*(ztrack - z) < sqMaxVel/1800))
+			      if ((distanceSq < sqMaxVel) and ((ztrack - z)*(ztrack - z) < sqMaxVel/200))
 			      {
 					if (numGated < maxNumGated)
 					{
