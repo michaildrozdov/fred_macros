@@ -707,16 +707,16 @@ early4:
 						set_marker(12,1,posAz);
 					}
 					//Print_line(" Az=",AzAngle," deg");
-					histEntryAz[rangeNum] = AzAngle;
-
-					// Splash the detection to neighboring ranges
-					histEntryAz[rangeNum - 1] = AzAngle;
-					histEntryAz[rangeNum + 1] = AzAngle;
 				}
 				else
 				{
 					AzAngle = 0;
 				}
+				histEntryAz[rangeNum] = AzAngle;
+
+				// Splash the detection to neighboring ranges
+				histEntryAz[rangeNum - 1] = AzAngle;
+				histEntryAz[rangeNum + 1] = AzAngle;
 
 				if (El==1)
 				{
@@ -760,16 +760,16 @@ early4:
 					//r12=L16;
 					set_marker(12,1,posEl);
 					//Print_line(" El=",ElAngle," deg");
-					histEntryEl[rangeNum] = ElAngle;
-
-					// Splash the detection to neighboring ranges
-					histEntryEl[rangeNum - 1] = ElAngle;
-					histEntryEl[rangeNum + 1] = ElAngle;
 				}
 				else
 				{
 					ElAngle = 0;
 				}
+				histEntryEl[rangeNum] = ElAngle;
+
+				// Splash the detection to neighboring ranges
+				histEntryEl[rangeNum - 1] = ElAngle;
+				histEntryEl[rangeNum + 1] = ElAngle;
 
 				print_line(Step, ", ", it + 1, ", ", R, ", ", Vmag, ", ", AzAngle, ", ", ElAngle, ",");
 
