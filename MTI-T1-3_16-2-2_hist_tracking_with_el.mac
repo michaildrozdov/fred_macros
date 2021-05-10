@@ -868,7 +868,7 @@ early4:
 					}
 				}
 				//print_line("Have valid track at position ", x, ", ", y, " and velocity ", vx, ", ", vy);
-				print_line(Step, ", Track ID=", idsTracks[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
+				print_line("Step=", Step, ", Track ID=", idsTracks[tr], ", R=", range, ", v=", velocity, ", az=", azimuth, ", el=", elevation,", active, error value=", thresholds[tr]);
 				print_line("In Cartesian: ", xtrack, " ", ytrack, " ", ztrack);
 				meanRValue = 0;
 				meanVValue = 0;
@@ -926,7 +926,7 @@ early4:
 aftertraces:
 				if (traceFound) // Just display the result of the averaging
 				{
-					print_line("Averaged values: R=", meanRValue, ", v=", meanVValue, ", az=", meanAzValue, ", el=", meanElValue, ". Calculated from ", measuredTimes, " measurements.");
+					print_line("Step=", Step, ", Averaged values: R=", meanRValue, ", v=", meanVValue, ", az=", meanAzValue, ", el=", meanElValue, ". Calculated from ", measuredTimes, " measurements.");
 				}
 				else
 				{
@@ -1077,7 +1077,7 @@ nexthistel:
 
 					if ((posAz > -1000) and (posEl > -1000))
 					{
-						print_line("Immobile detected at az=", posAz*azHistStep - azHistMaxAngle, ", el=",  posEl*elHistStep - elHistMaxAngle, ", R=", R);
+						print_line("Step=", Step, ", Immobile detected at R=", R, ", V=", 0, ", az=", posAz*azHistStep - azHistMaxAngle, ", el=",  posEl*elHistStep - elHistMaxAngle);
 					}
 				}
 			}
