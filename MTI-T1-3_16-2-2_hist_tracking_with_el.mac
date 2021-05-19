@@ -101,7 +101,7 @@ if (TX_pos[2] >= 0)
 if (TX_pos[3] >= 0)
 {
 	TxAz = 3;
-	TxMapping[Tx_pos[3]] = 2; //TX$ maps to the third azimuth location, the last actual azimuth
+	TxMapping[Tx_pos[3]] = 2; //TX4 maps to the third azimuth location, the last actual azimuth
 }
 
 print_line("The switching order is:");
@@ -276,15 +276,15 @@ PadK=dopplerPadding/perFrame; // PadK=8
 I8=signal(PadK,PadK,false);
 
 // Here matrices only need to hold signals for the 1st tx
-chMat=matrix(Nch * TxNum, N); // matrix to hold normalized signals
-prevChMat=matrix(Nch * TxNum, N);
+chMat=matrix(Nch * 4, N); // matrix to hold normalized signals
+prevChMat=matrix(Nch * 4, N);
 prevChMat=0;
-difMat=matrix(Nch * TxNum, N);
+difMat=matrix(Nch * 4, N);
 
 hitMaximums=signal(Tn,pointsToView,false);
 scoreMaximums=hitMaximums;
 
-phaseMat = matrix(Nch*TxNum, pointsToView); phaseMat=0;
+phaseMat = matrix(Nch*4, pointsToView); phaseMat=0;
 phaseMatT = matrix(pointsToView,Nch);
 ph1Matrix=matrix(perFrame,pointsToView);
 //phMatrix=matrix(perFrame,pointsToView);                                         //
