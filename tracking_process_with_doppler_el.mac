@@ -30,6 +30,7 @@
 	  //tracking parameters
 	  dt = 1;//frames
 	  maxVel = 10;//m/frame
+	  rangeScaling = 300; // Defines how small the range distance should be for the measurement to be assigned to track
 	  minVel = 0.1;//m/s
 	  kMatches = 1;//how many updated Kalman states can be created from single one with measurements close enough to estimation
 	  trueTrackThreshold = 1.5;//match factor defining, what is considered true track, less is for less false tracks
@@ -111,7 +112,7 @@
 			      distanceSq = (xtrack - x)*(xtrack - x) + (ytrack - y)*(ytrack - y) +  (ztrack - z)*(ztrack - z);
 			      //An additional requirement of small displacement along the z dimension
 			      //print_line("Checking gate: distanceSq ", distanceSq, ", ztrack ", ztrack, ", z ", z);
-			      if ((distanceSq < sqMaxVel) and ((ztrack - z)*(ztrack - z) < sqMaxVel/200))
+			      if ((distanceSq < sqMaxVel) and ((ztrack - z)*(ztrack - z) < sqMaxVel/rangeScaling))
 			      {
 					if (numGated < maxNumGated)
 					{
