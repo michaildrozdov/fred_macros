@@ -286,11 +286,10 @@ scoreMaximums=hitMaximums;
 
 phaseMat = matrix(Nch*4, pointsToView); phaseMat=0;
 phaseMatT = matrix(pointsToView,Nch);
-ph1Matrix=matrix(perFrame,pointsToView);
-//phMatrix=matrix(perFrame,pointsToView);                                         //
-ph1MatrixT=matrix(pointsToView,perFrame);
-//phMatrixT=matrix(pointsToView,perFrame);                                       //
+phMatrix=matrix(perFrame * Nch,pointsToView);
+phMatrixT=matrix(pointsToView,perFrame * Nch);
 ph1Tag1=signal(perFrame,perFrame,false);
+phtagx = signal(perFrame * Nch, perFrame, false);
 //phTag1=signal(perFrame,perFrame,false);                                          //
 
 //Signal matrix loading from disk
@@ -377,7 +376,7 @@ for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
 				mean_sig = mean_sig / max(mean_sig, pos);
 				for (i = 1; i < pointsToView - 1; i = i + 1)
 				{
-					if (mean_sig[i + 1] < mean_sig[i])
+					if ((mean_sig[i + 1] < mean_sig[i]) and (i > MaximumsDelay))
 					{
 						// we found our maximum
 						wallPoint = i;
@@ -428,14 +427,14 @@ stopwallend:
 			set_matrix_row(averagedMat,chNum,averaged);
 			//ie = ii - perFrame * floor(ii/perFrame);
 
+			ph1 = phase(spectr_1);
+			set_matrix_row(phMatrix, ie * Nch + chNum, ph1);
+
 			if(chNum==Ch)
 			{
 				//r11=currentRangeSig; //MTI spectrum of ch1
 				r9=averaged;           //LPF of r11
 				r8=currentRangeSig;
-				ph1=phase(spectr_1);
-				//ph=phase(spectr);                                              //
-				set_matrix_row(ph1Matrix,ie,ph1);
 				set_label(r9, pointsToView/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
 			}
 
@@ -629,7 +628,7 @@ early4:
 			r7=hitM;
 			hitTag=0;
 			hitM=0;
-			ph1MatrixT=transpose(ph1Matrix);
+			phMatrixT=transpose(phMatrix);
 			phaseMatT=transpose(phaseMat);
 
 			histEntryAz = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
@@ -650,28 +649,38 @@ early4:
 				{
 					R = R - startDelay;
 				}
-				ph1Tag1=get_matrix_row(ph1MatrixT,rangeNum);
+				phtagx=get_matrix_row(phMatrixT,rangeNum);
 				//set_window(ph1Tag1,perFrame,128);
-				set_label(ph1Tag1,128,"v","m/s)");
-				insert(ph1Tag1,0,perFrame-1,Ph2,0);
-				K11=fft(WH*(cos(ph2)+j()*sin(ph2))); // Doppler FFT on frame of Phazors
-				L11=mag(K11); //L11[0]=L11[1];
+				Vmag = 0;
+				for (chNum = 0; chNum < Nch; chNum = chNum + 1)
+				{
+					for (kk = 0; kk < perFrame; kk = kk + 1)
+					{
+						ph1Tag1[kk] = phtagx[kk * Nch + chNum];
+					}
+					set_label(ph1Tag1,128,"v","m/s)");
+					insert(ph1Tag1,0,perFrame-1,Ph2,0);
+					K11=fft(WH*(cos(ph2)+j()*sin(ph2))); // Doppler FFT on frame of Phazors
+					L11=mag(K11); //L11[0]=L11[1];
 
-				m11=max(L11,pos);
-				//out(pos);
-				if(pos>dopplerPadding/2)
-				{
-					Vmag=(pos-dopplerPadding)*dvel;  //Negative velocity (Approach)
-					//11=push(L11,2*(dopplerPadding-pos));
-					set_marker(11,1,dopplerPadding-pos);
+					m11=max(L11,pos);
+					//out(pos);
+					if(pos>dopplerPadding/2)
+					{
+						Vmag = Vmag + (pos-dopplerPadding)*dvel;  //Negative velocity (Approach)
+						//11=push(L11,2*(dopplerPadding-pos));
+						set_marker(11,1,dopplerPadding-pos);
+					}
+					else
+					{
+						Vmag = Vmag + pos*dvel;   //Positive velocity (Away)
+						//r11=L11;
+						set_marker(11,1,pos);
+					}
+
+					//Print_line("TagNo=",it+1," R=",R," m"," Vmag=",Vmag," m/s");
 				}
-				else
-				{
-					Vmag=pos*dvel;   //Positive velocity (Away)
-					//r11=L11;
-					set_marker(11,1,pos);
-				}
-				//Print_line("TagNo=",it+1," R=",R," m"," Vmag=",Vmag," m/s");
+				Vmag = Vmag / Nch;
 
 				phaseTag1=get_matrix_row(phaseMatT,rangeNum);
 
