@@ -935,7 +935,7 @@ early4:
 aftertraces:
 				if (traceFound) // Just display the result of the averaging
 				{
-					print_line("Step=", Step, ", Track ID=", traceNum + 1, ", Averaged values: R=", meanRValue, ", v=", meanVValue, ", az=", meanAzValue, ", el=", meanElValue, ". Calculated from ", measuredTimes, " measurements.");
+					print_line("Step=", Step, ", Track ID=", idsInMemory[traceNum], ", Averaged values: R=", meanRValue, ", v=", meanVValue, ", az=", meanAzValue, ", el=", meanElValue, ". Calculated from ", measuredTimes, " measurements.");
 				}
 				else
 				{
