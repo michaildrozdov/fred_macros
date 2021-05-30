@@ -4,6 +4,7 @@ clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_390-T1-T2-T3-0_radom_cross.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
 path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX3_board_green_16-2-2-2\test_395-T1-T2-T3-T4-0_radom_cross.sig";
+path_t = "C:\multitarget_data\0521wall-tests\test_469-breath.sig";
 //path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
 pathW="C:\multitarget_data\FRED\Kaizer.sig";
 //pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
@@ -50,6 +51,15 @@ Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
 throughWall = 1;
 TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
+
+// Research parameters
+checkBreathing = true;
+breathCheckStartPoint = 20;
+breathCheckEndPoint = 49;
+breathingPeriod = 64; // Of slow samples (frames). This is used for method 1 (based on Doppler velocities)
+breathingPeriod2 = 256; // Of slow samples. This is used for method 2 (based on amplitudes)
+breathSkips = 2; // How many signals there are are in a breathing frame for method 2
+breathingSpectrumMagnitude = 130; // What is considered large enough spectrum value
 
 // Position of each TX in the array
 TX_pos = signal(1, 4, false);
@@ -202,6 +212,20 @@ dvel = lambda0*domega/4/pi()/Tc*1000;
 dsinAz =c/(freq0*Azpadding*d);
 dsinEl = c/(freq0*Elpadding*d);
 
+breathingDeltaT = Tc * (perFrame + 2 * (TxNum - 1)) / 1000; // Same as the frame period but with all tx switching included, s
+breathingWindow = breathingPeriod*breathingDeltaT; // seconds
+breathingDeltaF = 1/breathingWindow; // Hz
+breathingWindow2 = breathingPeriod2 * Tc * breathSkips / 1000; // seconds
+breathingDeltaF2 = 1/breathingWindow2; // Hz
+checkBreathingPoints = breathCheckEndPoint - breathCheckStartPoint + 1;
+breathMat = matrix(breathingPeriod, checkBreathingPoints);
+breathAmplitudes = signal(1, checkBreathingPoints, false);
+breathMat = 0;
+breathMat2 = matrix(breathingPeriod2, checkBreathingPoints);
+breathAmplitudes2 = signal(1, checkBreathingPoints, false);
+breathMat2 = 0;
+spectrumMaximums = signal(1, checkBreathingPoints, false);
+
 //kVmsa=6/(perFrame*(perFrame-1)*(2*perFrame-1)); //for mean-scuare approximated velocity calculation
 MaximumsDelay=ceil(startDelay/distperpoint);        //Start delay number;
 
@@ -326,6 +350,7 @@ pause();
 t1=time();
 currentTime = 0;//used for tracker
 frameIndex = 0;
+breathSkipIndex = breathSkips - 1;
 
 for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
 {
@@ -436,6 +461,164 @@ stopwallend:
 				r9=averaged;           //LPF of r11
 				r8=currentRangeSig;
 				set_label(r9, pointsToView/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
+				if (checkBreathing) // Second method
+				{
+					if (breathSkipIndex == breathSkips - 1)
+					{
+						  cc1=get_matrix_row(chMat, chNum);
+
+						  SigZP_1=0;
+						  Insert(cc1*W,0,N-1,SigZP_1,0);
+
+						  spectr_1=fft(sigZP_1)/T;  //Range FFT
+						  set_window(spectr_1,pointsToView*dT,pointsToView);
+						  breathTestSignal = mag(spectr_1);
+						  
+						  breathAmplitudes2 = 0;
+						  for (rInd = breathCheckStartPoint; rInd <= breathCheckEndPoint; rInd = rInd + 1)
+						  {
+							    indexInBreath = rInd - breathCheckStartPoint;
+							    breathAmplitudes2[indexInBreath] = breathTestSignal[rInd];
+						  }
+						  
+						  //Shifting previous breathing amplitude by one in slow time dimension
+						  for (bInd = breathingPeriod2 - 1; bInd > 0; bInd = bInd - 1)
+						  {
+							    set_matrix_row(breathMat2, bInd, get_matrix_row(breathMat2, bInd-1));
+						  }
+						  //Rewriting 1st row with the latest data
+						  set_matrix_row(breathMat2, 0, breathAmplitudes2);
+
+						  //Transpose to calculate FFT along the slow time axis for each distance
+						  breathMatTransposed2 = transpose(breathMat2);
+						  draw(breathMatTransposed2);
+						  
+						  //Resetting the signal, in which we will keep spectrum maximums for all potential breathing points
+						  spectrumMaximums = 0;
+
+						  for(rInd = 0; rInd < checkBreathingPoints; rInd = rInd + 1)
+						  {
+							    //The amplitude distribution of the breathing on the slow time axis
+							    breathSlowTime = get_matrix_row(breathMatTransposed2, rInd);
+							    
+							    //To not have the garbage after the FFT need to set some time window
+							    set_label(breathSlowTime, breathingWindow2, "s", "mV");
+							    
+							    //Breathing spectrum
+							    breathSpectrum = mag(fft(breathSlowTime));
+							    breathSpectrum[0] = 0;
+							    
+							    //The proper labels and the scale
+							    set_label(breathSpectrum, 1/breathingWindow2*(breathingPeriod2/2+1), "Hz", "mV");
+							    if (rInd == 18)
+							    {
+								      set_label(breathSlowTime, breathingWindow2, "s", "mV");
+								      r16 = breathSlowTime; // For debugging
+								      r15 = breathSpectrum;
+							    }
+							    
+							    pos = 0;
+							    currentMaxValue = max(breathSpectrum, pos);
+
+							    //This is current policy of describing, what is the breathing spectrum
+							    //Currently we only allow further tests if enough data is collected to fill breathing slow time buffer
+							    if ((pos > 0) and (frameIndex * perFrame / breathSkips > breathingPeriod2)) //not a zero frequency 
+							    {
+								      sharpDropValue = 1;
+								      limit = pos - 2;
+								      if (limit < 0)
+								      {
+										limit = 0;
+								      }
+								      for (dropInd = pos; dropInd >= limit; dropInd = dropInd - 1)
+								      {
+										if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+										{
+											  sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+										}
+								      }
+								      if (sharpDropValue > 0.65)
+								      {
+										limit = pos + 2;
+										if (limit >= breathingPeriod/2 + 1)
+										{
+											  limit = breathingPeriod/2;
+										}
+										for (dropInd = pos; dropInd <= limit; dropInd = dropInd + 1)
+										{
+											  if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+											  {
+												    sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+											  }
+										}
+								      }
+								      if (sharpDropValue < 0.65)
+								      {
+										//Store this point, it could be local maximum along the distance axis
+										//We don't know that untill all points around all checked
+										spectrumMaximums[rInd] = currentMaxValue;
+								      }
+
+							    }
+						  }
+						  //Now we can display the current breathing spectrum maximums distribution
+						  //r16 = spectrumMaximums;
+						  breathSkipIndex = 0;
+						  numberOfBreathing = 0;
+						  
+						  for (rInd = 1; rInd < checkBreathingPoints-1; rInd = rInd + 1)
+						  {
+							    //Indices have to be explicit due to the bug in the array access
+							    nextIndex = rInd + 1;
+							    prevIndex = rInd - 1;
+							    
+							    //Looking for the local maximum, to avoid reporting many breathing points
+							    if (spectrumMaximums[rInd] > spectrumMaximums[nextIndex])
+							    {
+								      if (spectrumMaximums[rInd] > spectrumMaximums[prevIndex])
+								      {
+										//It is the local maximum, but is it strong enough?
+										if (spectrumMaximums[rInd] > breathingSpectrumMagnitude)
+										{
+											  //The same processing as before to have the breathing spectrum
+											  breathSlowTime = get_matrix_row(breathMatTransposed2, rInd);
+											  set_label(breathSlowTime, breathingWindow2, "s", "mV");
+											  breathSpectrum = mag(fft(breathSlowTime));
+											  breathSpectrum[0] = 0;
+											  set_label(breathSpectrum, 1/breathingWindow2*(breathingPeriod2/2+1), "Hz", "mV");
+											  
+											  //Have the limited number of register to store first few breathing spectrums
+											  if (numberOfBreathing == 0)
+											  {
+												    r1 = breathSpectrum;
+												    print_line("Breathing detected at distance point ", rInd + breathCheckStartPoint, ". Spectrum in r1");
+											  }
+											  if (numberOfBreathing == 1)
+											  {
+												    r2 = breathSpectrum;
+												    print_line("Breathing detected at distance point ", rInd + breathCheckStartPoint, ". Spectrum in r2");
+											  }
+											  if (numberOfBreathing == 2)
+											  {
+												    r3 = breathSpectrum;
+												    print_line("Breathing detected at distance point ", rInd + breathCheckStartPoint, ". Spectrum in r3");
+											  }
+											  if (numberOfBreathing == 3)
+											  {
+												    //r4 = breathSpectrum;
+												    //print_line("Breathing detected at distance point ", rInd, ". Spectrum in r4");
+											  }
+											  numberOfBreathing = numberOfBreathing + 1;
+										}
+								      }
+							    }
+						  }
+					}
+					else
+					{
+						  breathSkipIndex = breathSkipIndex + 1;
+					}
+				}
 			}
 
 			targetSignal = averaged;
@@ -795,6 +978,120 @@ early4:
 					numOfData= numOfData + 1;
 				}
 				//data for tracking is updated
+			}
+			
+			if (checkBreathing)
+			{
+			      breathAmplitudes = 0;
+			      for(rInd = breathCheckStartPoint; rInd <= breathCheckEndPoint; rInd = rInd + 1)
+			      {
+					R= rInd * distperpoint;
+					if (throughWall == 1)
+					{
+						  R = R - wallPoint * distPerPoint;
+					}
+					else
+					{
+						  R = R - startDelay;
+					}
+					phtagx = get_matrix_row(phMatrixT,rInd);
+
+					for (chNum = 0; chNum < Nch; chNum = chNum + 1)
+					{
+						  for (kk = 0; kk < perFrame; kk = kk + 1)
+						  {
+							  ph1Tag1[kk] = phtagx[kk * Nch + chNum];
+						  }
+						  set_label(ph1Tag1,128,"v","m/s)");
+						  insert(ph1Tag1,0,perFrame-1,Ph2,0);
+						  K11=fft(WH*(cos(ph2)+j()*sin(ph2))); // Doppler FFT on frame of Phazors
+						  L11=mag(K11); //L11[0]=L11[1];
+					  
+						  indexInBreath = rInd - breathCheckStartPoint;
+						  breathAmplitudes[indexInBreath] = breathAmplitudes[indexInBreath] + L11[1];
+					}
+			      }
+			      
+			      //Shifting previous breathing amplitude by one in slow time dimension
+			      for (bInd = breathingPeriod - 1; bInd > 0; bInd = bInd - 1)
+			      {
+					set_matrix_row(breathMat, bInd, get_matrix_row(breathMat, bInd-1));
+			      }
+			      //Rewriting 1st row with the latest data
+			      set_matrix_row(breathMat, 0, breathAmplitudes);
+
+			      //Transpose to calculate FFT along the slow time axis for each distance
+			      breathMatTransposed = transpose(breathMat);
+			      //draw(breathMatTransposed);
+			      
+			      //Resetting the signal, in which we will keep spectrum maximums for all potential breathing points
+			      spectrumMaximums = 0;
+
+			      for(rInd = 0; rInd < checkBreathingPoints; rInd = rInd + 1)
+			      {
+					//The amplitude distribution of the breathing on the slow time axis
+					breathSlowTime = get_matrix_row(breathMatTransposed, rInd);
+					
+					if (rInd == 14)
+					{
+						  set_label(breathSlowTime, breathingWindow, "s", "mV");
+						  //r16 = breathSlowTime; // For debugging
+					}
+					
+					//To not have the garbage after the FFT need to set some time window
+					set_label(breathSlowTime, breathingWindow, "s", "mV");
+					
+					//Breathing spectrum, 1000 is arbitrary multiplier to have values in the convenient range
+					breathSpectrum = 1000*mag(fft(breathSlowTime));
+					
+					//The proper labels and the scale
+					set_label(breathSpectrum, 1/breathingWindow*(breathingPeriod/2+1), "Hz", "mV");
+					
+					pos = 0;
+					currentMaxValue = max(breathSpectrum, pos);
+
+					//This is current policy of describing, what is the breathing spectrum
+					if (pos > 0) //not a zero frequency 
+					{
+						  sharpDropValue = 1;
+						  limit = pos - 2;
+						  if (limit < 0)
+						  {
+							    limit = 0;
+						  }
+						  for (dropInd = pos; dropInd >= limit; dropInd = dropInd - 1)
+						  {
+							    if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+							    {
+								      sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+							    }
+						  }
+						  if (sharpDropValue > 0.65)
+						  {
+							    limit = pos + 2;
+							    if (limit >= breathingPeriod/2 + 1)
+							    {
+								      limit = breathingPeriod/2;
+							    }
+							    for (dropInd = pos; dropInd <= limit; dropInd = dropInd + 1)
+							    {
+								      if (breathSpectrum[dropInd] < sharpDropValue*currentMaxValue)
+								      {
+										sharpDropValue = breathSpectrum[dropInd]/currentMaxValue;
+								      }
+							    }
+						  }
+						  if (sharpDropValue < 0.65)
+						  {
+							    //Store this point, it could be local maximum along the distance axis
+							    //We don't know that untill all points around all checked
+							    spectrumMaximums[rInd] = currentMaxValue;
+						  }
+
+					}
+			      }
+			      //Now we can display the current breathing spectrum maximums distribution
+			      //r16 = spectrumMaximums;
 			}
 
 			//Kalman filter based tracking update
