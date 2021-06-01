@@ -5,6 +5,7 @@ clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
 path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX3_board_green_16-2-2-2\test_395-T1-T2-T3-T4-0_radom_cross.sig";
 path_t = "C:\multitarget_data\0521wall-tests\test_469-breath.sig";
+path_t = "C:\multitarget_data\06 01 tests\1.7 meters\standing_side_with_grate.sig";
 //path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
 pathW="C:\multitarget_data\FRED\Kaizer.sig";
 //pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
@@ -55,11 +56,11 @@ TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 // Research parameters
 checkBreathing = true;
 breathCheckStartPoint = 20;
-breathCheckEndPoint = 49;
+breathCheckEndPoint = 90;
 breathingPeriod = 64; // Of slow samples (frames). This is used for method 1 (based on Doppler velocities)
 breathingPeriod2 = 256; // Of slow samples. This is used for method 2 (based on amplitudes)
 breathSkips = 2; // How many signals there are are in a breathing frame for method 2
-breathingSpectrumMagnitude = 130; // What is considered large enough spectrum value
+breathingSpectrumMagnitude = 80; // What is considered large enough spectrum value
 
 // Position of each TX in the array
 TX_pos = signal(1, 4, false);
@@ -458,9 +459,10 @@ stopwallend:
 			if(chNum==Ch)
 			{
 				//r11=currentRangeSig; //MTI spectrum of ch1
+				set_label(averaged, pointsToView/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
 				r9=averaged;           //LPF of r11
 				r8=currentRangeSig;
-				set_label(r9, pointsToView/Tn,"kHz","mV"); //set_label(r11,(Nn/2+1)/Tn,"kHz","mV");
+				
 				if (checkBreathing) // Second method
 				{
 					if (breathSkipIndex == breathSkips - 1)
@@ -495,6 +497,7 @@ stopwallend:
 						  
 						  //Resetting the signal, in which we will keep spectrum maximums for all potential breathing points
 						  spectrumMaximums = 0;
+						  clearPeakFlags = spectrumMaximums;
 
 						  for(rInd = 0; rInd < checkBreathingPoints; rInd = rInd + 1)
 						  {
@@ -510,7 +513,7 @@ stopwallend:
 							    
 							    //The proper labels and the scale
 							    set_label(breathSpectrum, 1/breathingWindow2*(breathingPeriod2/2+1), "Hz", "mV");
-							    if (rInd == 18)
+							    if (rInd == 38)
 							    {
 								      set_label(breathSlowTime, breathingWindow2, "s", "mV");
 								      r16 = breathSlowTime; // For debugging
@@ -518,7 +521,11 @@ stopwallend:
 							    }
 							    
 							    pos = 0;
+							    pos2 = 0;
 							    currentMaxValue = max(breathSpectrum, pos);
+							    breathSpectrumCopy = breathSpectrum;
+							    breathSpectrumCopy[pos] = 0;
+							    currentMaxValue2 = max(breathSpectrumCopy, pos2);
 
 							    //This is current policy of describing, what is the breathing spectrum
 							    //Currently we only allow further tests if enough data is collected to fill breathing slow time buffer
@@ -558,6 +565,11 @@ stopwallend:
 										//We don't know that untill all points around all checked
 										spectrumMaximums[rInd] = currentMaxValue;
 								      }
+								      if (currentMaxValue > 4 * currentMaxValue2) // Clear peak
+								      {
+										spectrumMaximums[rInd] = currentMaxValue;
+										clearPeakFlags[rInd] = 1;
+								      }
 
 							    }
 						  }
@@ -578,7 +590,7 @@ stopwallend:
 								      if (spectrumMaximums[rInd] > spectrumMaximums[prevIndex])
 								      {
 										//It is the local maximum, but is it strong enough?
-										if (spectrumMaximums[rInd] > breathingSpectrumMagnitude)
+										if ((spectrumMaximums[rInd] > breathingSpectrumMagnitude) or (clearPeakFlags[rInd] > 0))
 										{
 											  //The same processing as before to have the breathing spectrum
 											  breathSlowTime = get_matrix_row(breathMatTransposed2, rInd);
@@ -696,7 +708,7 @@ early3:
 			}
 		}
 		//out(TagU);             //Moving targets number
-		r2=scoreMaximums; //Point numbers of Targets
+		//r2=scoreMaximums; //Point numbers of Targets
 		hitM=hitM+hitTag;
 		r4 = hitTag; //Moving targets demonstration
 		//set_matrix_row(tagMatrix,ie,scoreMaximums);
@@ -806,7 +818,7 @@ early4:
 			//Out(TagUs);
 			r10=Sr15;  // Moving targets demonstration
 			//Pause();
-			r3=Sr3;
+			//r3=Sr3;
 			//r16=scoreMaximums;
 			r7=hitM;
 			hitTag=0;
