@@ -3,10 +3,10 @@ clear_variables();
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_389-T1-T2-T3-0_radom_udal_pribl.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX_board_grey_16-2-2\test_390-T1-T2-T3-0_radom_cross.sig";
 //path_t="C:\multitarget_data\Indoor\Fred-2021-03-10-16-2-2-2_green_stenka_2man\test_402-T1-T2-T3-T4-0_radom_1nobreath_1udal_pribl.sig";
-path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX3_board_green_16-2-2-2\test_395-T1-T2-T3-T4-0_radom_cross.sig";
-//path_t = "C:\Users\matve\Desktop\Geozondas\04\25032021_green_wall\test_434-T1-T2-T3-T4-0_2man_2dist_breath.sig";
-pathW="C:\multitarget_data\FRED\Kaizer.sig";
-//pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
+//path_t="C:\multitarget_data\Indoor\Fred-2021-03-05_16_2_2_2\TX3_board_green_16-2-2-2\test_395-T1-T2-T3-T4-0_radom_cross.sig";
+path_t = "C:\Users\matve\Desktop\Geozondas\Conversion\0601\1.7 meters\standing_face.sig";
+//pathW="C:\multitarget_data\FRED\Kaizer.sig";
+pathW="C:\Users\matve\Desktop\Geozondas\04\Kaizer.sig";
 
 //Parameteres from hardware
 Nch = 8;                    // Number of Rx
@@ -45,9 +45,9 @@ elHistStep = 2; // Angle step in the angle histogram, degrees
 coordMemorySize = 7; // How many coordinate measurements should be averaged to get a final value
 
 //GUI parametes
-Range = 30;                  // m
+Range = 10;                  // m
 Az = 1;                   // To measure Azimuth   (1,0)
-El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
+El =  0;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
 throughWall = 1;
 TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 
@@ -402,7 +402,12 @@ stopwallend:
 		hitMaximums =0;
 		hitTag=hitMaximums;
 		difMat=chMat-prevChMat; //There are only valid changes for TX_pos[0]
-		prevChMat=chMat;
+//		prevChMat = chMat;
+//		subtracking only up to 8th signal
+		if (frameIndex <= 7)
+		{
+			prevChMat=chMat;
+		}
 
 		for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 		{
