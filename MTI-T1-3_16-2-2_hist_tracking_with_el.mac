@@ -160,7 +160,7 @@ timestamps = 0;
 //Tracking high level params
 trueTrackThreshold = 0.8;
 maxVel = 2;//m/s
-minVel = 0.1;//m/s
+minVel = 0;//m/s
 minAgeToDisplayRadial = 2;//track with mostly radial movement needs to be updated for this amount of frames to be displayed
 minAgeToDisplayTangental = 4;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
 //end of tracking igh level params
@@ -404,7 +404,7 @@ stopwallend:
 		difMat=chMat-prevChMat; //There are only valid changes for TX_pos[0]
 //		prevChMat = chMat;
 //		subtracking only up to 8th signal
-		if (frameIndex <= 7)
+		if (frameIndex == 0 and ii <= 7)
 		{
 			prevChMat=chMat;
 		}
