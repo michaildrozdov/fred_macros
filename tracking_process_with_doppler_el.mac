@@ -39,7 +39,8 @@
 	  minAgeToDisplayTangental = 5;//track with mostly tangental movement needs to be updated for this amount of frames to be displayed
 
 	  matchingVelocityThreshold = 0.5;//0.8 means within 80%
-	  matchingPositionThreshold = 1;
+	  matchingPositionThreshold = 0.25;
+	  matchingAngleThresholdSq = 4; // 2 deg
 	  
 	  //R = 5*eye(3);//sensor noise for r, a, v and vy, should optimize this, smaller number means believing measurement more than model
 	  //R(2,2) = 10;
@@ -130,7 +131,6 @@
 		    }
 		    //print_line("Gated measurments found ", numGated);
 
-		
 		    //gatedMeasurements = length(gated);
 		
 		    //2) find best matching update
@@ -152,10 +152,12 @@
 					y2 = rDataGated[gg] * cos(aDataGated[gg] * pi() / 180) * sin(eDataGated[gg] * pi() / 180);
 					z2 = rDataGated[gg] * cos(aDataGated[gg] * pi() / 180) * cos(eDataGated[gg] * pi() / 180);
 
-					dposSq = (x2 - x)*(x2 - x) + (y2 - y)*(y2 - y) + (z2 - z)*(z2 - z);
+					//dposSq = (x2 - x)*(x2 - x) + (y2 - y)*(y2 - y) + (z2 - z)*(z2 - z);
+					dposSq = (rDataGated[g] - rDataGated[gg]) * (rDataGated[g] - rDataGated[gg]);
+					dangleSq = (aDataGated[g] - aDataGated[gg]) * (aDataGated[g] - aDataGated[gg]);
 					velRatio = vDataGated[g] / (vDataGated[gg] + 0.1);
 					velMatches = (velRatio > 0) or ((abs(vDataGated[g]) < 0.2) and (abs(vDataGated[gg]) < 0.2));
-					if ((dposSq < matchingPositionThreshold*matchingPositionThreshold) and velMatches)
+					if ((dposSq < matchingPositionThreshold*matchingPositionThreshold) and velMatches and dangleSq < matchingAngleThresholdSq)
 					{					  
 						  rDataGated[g] = (rDataGated[g]+rDataGated[gg])/2;
 						  aDataGated[g] = (aDataGated[g]+aDataGated[gg])/2;
@@ -618,29 +620,26 @@
 			      ytrack2 = range2 * cos(az2 * pi() / 180) * sin(el2 * pi() / 180);
 			      ztrack2 = range2 * cos(az2 * pi() / 180) * cos(el2 * pi() / 180);
 			      
-			      dpos = sqrt((xtrack2 - xtrack)*(xtrack2 - xtrack) + (ytrack2 - ytrack)*(ytrack2 - ytrack) + (ztrack2 - ztrack)*(ztrack2 - ztrack));
-			     
-			      if (abs(get_matrix(states, tr2, 1)) < 0.01)
+			      //dpos = sqrt((xtrack2 - xtrack)*(xtrack2 - xtrack) + (ytrack2 - ytrack)*(ytrack2 - ytrack) + (ztrack2 - ztrack)*(ztrack2 - ztrack));
+			      dpos = (range - range2) * (range - range2);
+			      dangleSq = (az - az2) * (az - az2);
+			      
+			      velRatio = get_matrix(states, tr, 1)/(get_matrix(states, tr2, 1) + 0.01);
+			      
+			      if ((abs(get_matrix(states, tr2, 1)) < 0.05) and (abs(get_matrix(states, tr, 1)) < 0.05))
 			      {
-					additional = 0.1;
-					//print_line("just setting additional");
-			      }
-			      else
-			      {
-					//print_line("calculating additional properly");
-					additional = 0.1*get_matrix(states, tr2, 1)/abs(get_matrix(states, tr2, 1));
+					velRatio = 1; // It doesn't matter what is the measured ratio, both velocities are negligible
 			      }
 			      
-			      //print_line("additional ", additional);
-			      
-			      velRatio = get_matrix(states, tr, 1)/(get_matrix(states, tr2, 1) + additional);
-			      
-			      if ((dpos < matchingPositionThreshold) and (velRatio > matchingVelocityThreshold) and (velRatio < 1/matchingVelocityThreshold))
+			      if ((dpos < matchingPositionThreshold) and (velRatio > matchingVelocityThreshold) and (velRatio < 1/matchingVelocityThreshold) and (dangleSq < matchingAngleThresholdSq))
 			      {
-					//print_line("Merging tracks: ", x11[tr], ", ", x21[tr], ", ", x31[tr], " with ", x11[tr2], ", ", x21[tr2], ", ", x31[tr2]);
-					//print_line("x1=", xtrack, ", y1=", ytrack, ", x2=", xtrack2, ", y2=", ytrack2, ", dpos=", dpos);
+					//print_line("dpos ", dpos, ", velRatio ", velRatio);
+					//print_line("Merging ", get_matrix(states, tr, 0), ", ", get_matrix(states, tr, 1), ", ", get_matrix(states, tr, 2), ", ", get_matrix(states, tr, 3), ", ", get_matrix(states, tr, 4), ", ", get_matrix(states, tr, 5));
+					//print_line("and ", get_matrix(states, tr2, 0), ", ", get_matrix(states, tr2, 1), ", ", get_matrix(states, tr2, 2), ", ", get_matrix(states, tr2, 3), ", ", get_matrix(states, tr2, 4), ", ", get_matrix(states, tr2, 5));
 					
 					set_matrix_row(states, tr, (get_matrix_row(states, tr) + get_matrix_row(states, tr2)) / 2);
+					
+					//print_line("Resulting track ", get_matrix(states, tr, 0), ", ", get_matrix(states, tr, 1), ", ", get_matrix(states, tr, 2), ", ", get_matrix(states, tr, 3), ", ", get_matrix(states, tr, 4), ", ", get_matrix(states, tr, 5));
 					
 					//x11[tr] = (x11[tr] + x11[tr2])/2;
 					//x21[tr] = (x21[tr] + x21[tr2])/2;
