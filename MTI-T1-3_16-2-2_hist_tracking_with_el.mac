@@ -45,7 +45,8 @@ elHistStep = 2; // Angle step in the angle histogram, degrees
 coordMemorySize = 7; // How many coordinate measurements should be averaged to get a final value
 
 //GUI parametes
-Range = 30;                  // m
+Rstop = 10;                  // m (starting from Rstart)
+Rstart = 0;
 Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
 throughWall = 1;
@@ -194,7 +195,7 @@ B = freqMax - freq0;      // Bandwidth
 slope = B/(T/1000);       //0.5 GHz/10 ms
 deltaf = 1/(T/1000);      //Hz,   original IF delta
 distPerPoint = deltaf*c/2/slope*N/Nn; //m
-pointsToView = ceil(Range/distPerPoint)+2;
+pointsToView = ceil(Rstop/distPerPoint)+2;
 totalDistance = distPerPoint*(N/2+1);
 lambda0 = c/freq0;
 domega = 2*pi()/dopplerPadding;
@@ -379,24 +380,25 @@ for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
 					if ((mean_sig[i + 1] < mean_sig[i]) and (i > MaximumsDelay))
 					{
 						// we found our maximum
-						wallPoint = i;
-						print_line("Delay in meters: ", wallPoint * distPerPoint);
+						MaximumsDelay = i;
+						print_line("Delay in meters: ", MaximumsDelay * distPerPoint);
 						goto stopwallmax;
 					}
 				}
 stopwallmax:
-
-				for (i = wallPoint; i < pointsToView - 1; i = i + 1)
-				{
-					if (mean_sig[i + 1] > mean_sig[i])
-					{
-						MaximumsDelay = i;
-						goto stopwallend;
-					}
-				}
-stopwallend:
+//
+//				for (i = wallPoint; i < pointsToView - 1; i = i + 1)
+//				{
+//					if (mean_sig[i + 1] > mean_sig[i])
+//					{
+//						MaximumsDelay = i;
+//						goto stopwallend;
+//					}
+//				}
+//stopwallend:
 				pause();
 			}
+			MaximumsDelay = MaximumsDelay + ceil(Rstart/distPerPoint);
 		}
 
 		hitMaximums =0;
