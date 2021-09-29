@@ -53,6 +53,7 @@ Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
 throughWall = 0;
 TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
+txToUse = 3;
 
 // Research parameters
 checkBreathing = false;
@@ -126,6 +127,7 @@ for (index = 0; index < TxNum; index = index + 1)
 	}
 }
 
+TxAz = 2;
 out(TxAz);
 out(TxEl);
 
@@ -347,7 +349,7 @@ WHaz=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
 WHaz=0;
 For(i=0; i<RxAz*TxAz; i=i+1)
 { WHaz[i]=0.54-0.46*cos(2*pi()*i/RxAz/TxAz); }
-//r13=WHaz;
+//r12=WHaz;
 pause();
 
 t1=time();
@@ -914,11 +916,18 @@ early4:
 					}
 					//r2=phAz;
 					set_label(phAz,Azpadding,"v","m/s)");
-
+					//if (it == 0)
+					//{
+						  //r12=mag(WHaz*(cos(phAz)+j*sin(phAz)));
+					//}
 					Az16=fft(WHaz*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
 					L16=mag(Az16);
 					m16=max(L16,posAz);
-
+					//if (it == 0)
+					//{
+						  //r12=L16;
+					//}
+					//print_line("Maximum value ", m16, " at point ", posAz);
 					//r12=L16;
 					//out(posAz);
 					if(posAz>Azpadding/2)
