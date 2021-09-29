@@ -114,6 +114,8 @@ for (index = 0; index < TxNum; index = index + 1)
 	}
 }
 
+// Uncomment the line below to force 3 tx behavior for 4 tx measurements
+//TxAz = 2;
 out(TxAz);
 out(TxEl);
 
@@ -313,15 +315,15 @@ For(i=0;i<perFrame;i=i+1)
 
 WHel=signal(Elpadding*TxEl,Elpadding,false);   //Hamming Window for elevation angle FFT
 WHel=0;
-For(i=0;i<RxEl;i=i+1)
-{ WHel[i]=0.54-0.46*cos(2*pi()*i/Rxel); } // Hamming Window for azimuth angle FFT
+For(i=0; i<RxEl * TxEl; i=i+1)
+{ WHel[i]=0.54-0.46*cos(2*pi() * i / Rxel / TxEl); } // Hamming Window for azimuth angle FFT
 //r13=WHel;
 
 WHaz=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
 WHaz=0;
-For(i=0;i<RxAz;i=i+1)
-{ WHaz[i]=0.54-0.46*cos(2*pi()*i/RxAz); }
-//13=WHaz;
+For(i=0; i<RxAz * TxAz; i=i+1)
+{ WHaz[i]=0.54-0.46*cos(2*pi() * i / RxAz / TxAz); }
+r13=WHaz;
 pause();
 
 t1=time();
