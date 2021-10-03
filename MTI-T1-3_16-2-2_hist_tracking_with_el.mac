@@ -125,7 +125,7 @@ for (index = 0; index < TxNum; index = index + 1)
 		print_line(index, " antenna to be switched on goes to ", TxMapping[index], " location in azimuth axis (3 is non-azimuth).");
 	}
 }
-
+TxAz = 2;
 out(TxAz);
 out(TxEl);
 
@@ -339,8 +339,8 @@ For(i=0;i<perFrame;i=i+1)
 
 WHel=signal(Elpadding*TxEl,Elpadding,false);   //Hamming Window for elevation angle FFT
 WHel=0;
-For(i=0;i<RxEl;i=i+1)
-{ WHel[i]=0.54-0.46*cos(2*pi()*i/Rxel); } // Hamming Window for azimuth angle FFT
+For(i=0;i<RxEl*TxEl;i=i+1)
+{ WHel[i]=0.54-0.46*cos(2*pi()*i/Rxel/TxEl); } // Hamming Window for azimuth angle FFT
 //r13=WHel;
 
 WHaz=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
