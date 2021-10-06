@@ -377,27 +377,29 @@ for (frameIndex = 0; frameIndex < totalFrames; frameIndex = frameIndex + 1)
 
 				// The maximum will be 1
 				mean_sig = mean_sig / max(mean_sig, pos);
-				for (i = 1; i < pointsToView - 1; i = i + 1)
+				for (i = MaximumsDelay; i < pointsToView - 1; i = i + 1)
 				{
-					if ((mean_sig[i + 1] < mean_sig[i]) and (i > MaximumsDelay))
+					if (mean_sig[i + 1] < mean_sig[i])
 					{
 						// we found our maximum
 						MaximumsDelay = i;
-						print_line("Delay in meters: ", MaximumsDelay * distPerPoint);
 						goto stopwallmax;
 					}
 				}
 stopwallmax:
-//
-//				for (i = wallPoint; i < pointsToView - 1; i = i + 1)
-//				{
-//					if (mean_sig[i + 1] > mean_sig[i])
-//					{
-//						MaximumsDelay = i;
-//						goto stopwallend;
-//					}
-//				}
-//stopwallend:
+				// Wall end
+				// this distance is subtracted from R
+				for (i = MaximumsDelay; i < pointsToView - 1; i = i + 1)
+				{
+					if (mean_sig[i + 1] > mean_sig[i])
+					{
+						MaximumsDelay = i;
+						startDelay = MaximumsDelay * distPerPoint;
+						print_line("Delay in meters: ", MaximumsDelay * distPerPoint);
+						goto stopwallend;
+					}
+				}
+stopwallend:
 				pause();
 			}
 			MaximumsDelay = MaximumsDelay + ceil(Rstart/distPerPoint);
@@ -644,15 +646,7 @@ early4:
 			{
 				//Ph2=0;
 				rangeNum=scoreMaximums[it];
-				R=rangeNum*distperpoint;
-				if (throughWall == 1)
-				{
-					R = R - wallPoint * distPerPoint;
-				}
-				else
-				{
-					R = R - startDelay;
-				}
+				R=rangeNum*distperpoint - startDelay;
 				phtagx=get_matrix_row(phMatrixT,rangeNum);
 				//set_window(ph1Tag1,perFrame,128);
 				Vmag = 0;
@@ -1021,15 +1015,7 @@ endofloop:
 					//print_line("Target number ", it);
 					//print_line("azimuth hist:");
 					rangeNum=scoreMaximums[it];
-					R=rangeNum*distperpoint;
-					if (throughWall == 1)
-					{
-						R = R - wallPoint * distPerPoint;
-					}
-					else
-					{
-						R = R - startDelay;
-					}
+					R=rangeNum*distperpoint - startDelay;
 					histAz = 0;
 					histEl = 0;
 					// Azimuth from the histogram
