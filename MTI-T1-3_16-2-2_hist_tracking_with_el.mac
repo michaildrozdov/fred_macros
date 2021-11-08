@@ -43,13 +43,14 @@ azHistStep = 2; // Angle step in the angle histogram, degrees
 elHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaution of angle histogram, degrees
 elHistStep = 2; // Angle step in the angle histogram, degrees
 coordMemorySize = 7; // How many coordinate measurements should be averaged to get a final value
+requiredAngleSimilarity = 12; // Degrees
 
 //GUI parametes
 Rstop = 10;                  // m (starting from Rstart)
 Rstart = 0;
 Az = 1;                   // To measure Azimuth   (1,0)
 El =  1;                  //To measure Elevation   (1,0), Az & El shall not be 0 simultaniously
-throughWall = 1;
+throughWall = 0;
 TxNum=4;              // Number 0f Tx antennas (3, 4 optional);
 
 // Position of each TX in the array
@@ -115,12 +116,12 @@ for (index = 0; index < TxNum; index = index + 1)
 }
 
 // Uncomment the line below to force 3 tx behavior for 4 tx measurements
-//TxAz = 2;
+TxAz = 2;
 out(TxAz);
 out(TxEl);
 
 //Device tuning parameters
-startDelay=0.35;               // m
+startDelay=1.263;               // m
 Ch = 4;                          // Velosity measuring channel number = 2. C0hanging Ch see rows 180 - 187
 
 //Tracking low level params
@@ -313,17 +314,28 @@ For(i=0;i<perFrame;i=i+1)
 { WH[i]=0.54-0.46*cos(2*pi()*i/perFrame); }
 //r13=WH;
 
-WHel=signal(Elpadding*TxEl,Elpadding,false);   //Hamming Window for elevation angle FFT
-WHel=0;
-For(i=0; i<RxEl * TxEl; i=i+1)
-{ WHel[i]=0.54-0.46*cos(2*pi() * i / Rxel / TxEl); } // Hamming Window for azimuth angle FFT
+WHel1 = signal(Elpadding, Elpadding, false);   //Hamming Window for elevation angle FFT
+WHel1 = 0;
+For(i=0; i < RxEl; i=i+1)
+{ WHel1[i]=0.54-0.46*cos(2*pi() * i / Rxel); } // Hamming Window for azimuth angle FFT
+
+WHel2 = signal(Elpadding*TxEl, Elpadding, false);   //Hamming Window for elevation angle FFT
+WHel2 = 0;
+For(i=0; i < RxEl; i=i+1)
+{ WHel2[i]=0.54-0.46*cos(2*pi() * i / Rxel / TxEl); } // Hamming Window for azimuth angle FFT
+
 //r13=WHel;
 
-WHaz=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
-WHaz=0;
-For(i=0; i<RxAz * TxAz; i=i+1)
-{ WHaz[i]=0.54-0.46*cos(2*pi() * i / RxAz / TxAz); }
-r13=WHaz;
+WHaz1=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
+WHaz1=0;
+For(i=0; i<RxAz; i=i+1)
+{ WHaz1[i]=0.54-0.46*cos(2*pi()*i/RxAz); }
+
+WHaz2=signal(Azpadding*TxAz,Azpadding,false);   //Hamming Window
+WHaz2=0;
+For(i=0; i<RxAz*TxAz; i=i+1)
+{ WHaz2[i]=0.54-0.46*cos(2*pi()*i/RxAz/TxAz); }
+
 pause();
 
 t1=time();
@@ -696,22 +708,52 @@ early4:
 					//{
 					//	  r12=phAz;
 					//}
-					Az16=fft(WHaz*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
+					posAz2 = 0;
+					posAz1 = 0;
+					
+					Az16=fft(WHaz1*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
 					L16=mag(Az16);
-					m16=max(L16,posAz);
+					m16=max(L16,posAz1);
+					
+					if (it == 0)
+					{
+						  r12=L16;
+					}
+					
+					Az16=fft(WHaz2*(cos(phAz)+j*sin(phAz))); //Azimuth FFT on channels Phazors
+					L16=mag(Az16);
+					m16=max(L16,posAz2);
+					
 					//r12=L16;
 					//out(posAz);
-					if(posAz>Azpadding/2)
+					if(posAz1 > Azpadding / 2)
 					{
-						AzAngle=Asin((posAz-Azpadding)*dsinAz)*180/pi();  //Negative velocity (From the left)
-						//r12=push(L16,2*(Azpadding-posAz));
-						set_marker(12,1,Azpadding-posAz);
+						AzAngle1 = Asin((posAz1 - Azpadding) * dsinAz) * 180 / pi();  //Negative velocity (From the left)
 					}
 					else
 					{
-						AzAngle=Asin(posAz*dsinAz)*180/pi();   //Positive velocity (From the right)
+						AzAngle1 = Asin(posAz1 * dsinAz) * 180 / pi();   //Positive velocity (From the right)
+					}
+					
+					if(posAz2 > Azpadding / 2)
+					{
+						AzAngle2 = Asin((posAz2 - Azpadding) * dsinAz) * 180 / pi();  //Negative velocity (From the left)
+						//r12=push(L16,2*(Azpadding-posAz));
+						set_marker(12,1,Azpadding-posAz2);
+					}
+					else
+					{
+						AzAngle2 = Asin(posAz2 * dsinAz) * 180 / pi();   //Positive velocity (From the right)
 						//r12=L16;
-						set_marker(12,1,posAz);
+						set_marker(12,1,posAz2);
+					}
+					
+					AzAngle = AzAngle2;
+					
+					if (abs(AzAngle2 - AzAngle1) > requiredAngleSimilarity)
+					{
+						  print_line("Target ", it, " dropped due to mismatch in az for different antennas (", AzAngle1, " vs ", AzAngle2, ") at R=", R);
+						  goto skiptarget;
 					}
 					//Print_line(" Az=",AzAngle," deg");
 				}
@@ -743,29 +785,53 @@ early4:
 					}
 
 					//r1=phEl;
+					posEl1 = 0;
+					posEl2 = 0;
 					set_label(phEl,Elpadding,"v","m/s)");
-					El16=fft(WHel*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
+					El16=fft(WHel1*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
 					L16=mag(El16);
-					m16=max(L16,posEl);
+					m16=max(L16,posEl1);
+					
+					
+					El16=fft(WHel2*(cos(phEl)+j*sin(phEl))); //Elevation FFT on channels Phazors
+					L16=mag(El16);
+					m16=max(L16,posEl2);
+					
 					if (it == 0)
 					{
 						r12=PhEl;
 					}
 					//out(posEl);
-					if(posEl>Elpadding/2)
+					if(posEl1 > Elpadding / 2)
 					{
-						ElAngle=asin((posEl-Elpadding)*dsinEl)*180/pi();  //Negative velocity (From the bottom)
+						ElAngle1=asin((posEl1 - Elpadding) * dsinEl) * 180 / pi();  //Negative velocity (From the bottom)
 						//r12=push(L16,2*(Elpadding-posAz));
 						//set_marker(12,1,Elpadding-posAz);
 					}
 					else
 					{
-						ElAngle=asin(posEl*dsinEl)*180/pi();   //Positive velocity (From the right)
+						ElAngle1=asin(posEl1 * dsinEl) * 180 / pi();   //Positive velocity (From the right)
 						//r12=L16;
 						//set_marker(12,1,posEl);
 					}
+					if(posEl2 > Elpadding / 2)
+					{
+						ElAngle2=asin((posEl2 - Elpadding) * dsinEl) * 180 / pi();  //Negative velocity (From the bottom)
+					}
+					else
+					{
+						ElAngle2=asin(posEl2 * dsinEl) * 180 / pi();   //Positive velocity (From the right)
+					}
+					
+					if (abs(ElAngle2 - ElAngle1) > requiredAngleSimilarity)
+					{
+						  print_line("Target ", it, " dropped due to mismatch in el for different antennas (", ElAngle1, " vs ", ElAngle2, ") at R=", R);
+						  goto skiptarget;
+					}
+					ElAngle = ElAngle2;
+					
 					//r12=L16;
-					set_marker(12,1,posEl);
+					set_marker(12,1,posEl2);
 					//Print_line(" El=",ElAngle," deg");
 				}
 				else
@@ -792,6 +858,8 @@ early4:
 				{
 					numOfData= numOfData + 1;
 				}
+				
+				skiptarget:
 				//data for tracking is updated
 			}
 
