@@ -321,7 +321,7 @@ For(i=0; i < RxEl; i=i+1)
 
 WHel2 = signal(Elpadding*TxEl, Elpadding, false);   //Hamming Window for elevation angle FFT
 WHel2 = 0;
-For(i=0; i < RxEl; i=i+1)
+For(i=0; i < RxEl*TxEl; i=i+1)
 { WHel2[i]=0.54-0.46*cos(2*pi() * i / Rxel / TxEl); } // Hamming Window for azimuth angle FFT
 
 //r13=WHel;
