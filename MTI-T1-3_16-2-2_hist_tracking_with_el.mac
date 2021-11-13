@@ -36,14 +36,10 @@ Nor=2^15;	                 // Signal amplitude nor
 NoiseLevel = 0.25;        // FaLse maximums level
 dMinLevel = 0.2;          // FaLse adjacent minimum level
 MinRise = 0.01;             // FaLse rise level
-breathingHistSamples = 32; // How many points there can be in the histogram for current distance
-breathingHistRequired = 10; // How many points are needed to calculate the histogram
-azHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaution of angle histogram, degrees
-azHistStep = 2; // Angle step in the angle histogram, degrees
-elHistMaxAngle = 52; // Maximum displacements from the boresight for the evalaution of angle histogram, degrees
-elHistStep = 2; // Angle step in the angle histogram, degrees
+
 coordMemorySize = 7; // How many coordinate measurements should be averaged to get a final value
-requiredAngleSimilarity = 12; // Degrees
+requiredAngleSimilarityAz = 12; // Degrees
+requiredAngleSimilarityEl = 60; // Degrees
 
 //GUI parametes
 Rstop = 10;                  // m (starting from Rstart)
@@ -262,16 +258,6 @@ averagedMat = 0;
 averaged = signal(Tn,pointsToView,false);
 averaged=0;
 mean_sig = averaged;
-histogramMatAz = matrix(breathingHistSamples, pointsToView);
-histogramMatAz = -1000; //Invalid values
-histogramMatEl = matrix(breathingHistSamples, pointsToView);
-histogramMatEl = -1000; //Invalid values
-
-histEntryAz = signal(10, pointsToView, false);
-histEntryEl = signal(10, pointsToView, false);
-
-histAz = signal(2*azHistMaxAngle, floor(2*azHistMaxAngle/azHistStep + 1), false);
-histEl = signal(2*elHistMaxAngle, floor(2*elHistMaxAngle/elHistStep + 1), false);
 
 hitTag = signal(dT*(pointsToView),pointsToView,false);
 hitTag=0;
@@ -649,9 +635,6 @@ early4:
 			phMatrixT=transpose(phMatrix);
 			phaseMatT=transpose(phaseMat);
 
-			histEntryAz = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
-			histEntryEl = -1000; // Setting the single row to be entered into a histogram of angles with invalid values
-
 			Step = frameIndex + 1; //Number of speed calculation cycle
 			//Print_line("Ch",CH+1,"   Step=",Step,"  ",ii );
 			for(it=0; it<TagUs; it=it+1)
@@ -750,7 +733,7 @@ early4:
 					
 					AzAngle = AzAngle2;
 					
-					if (abs(AzAngle2 - AzAngle1) > requiredAngleSimilarity)
+					if (abs(AzAngle2 - AzAngle1) > requiredAngleSimilarityAz)
 					{
 						  print_line("Target ", it, " dropped due to mismatch in az for different antennas (", AzAngle1, " vs ", AzAngle2, ") at R=", R);
 						  goto skiptarget;
@@ -761,11 +744,6 @@ early4:
 				{
 					AzAngle = 0;
 				}
-				histEntryAz[rangeNum] = AzAngle;
-
-				// Splash the detection to neighboring ranges
-				histEntryAz[rangeNum - 1] = AzAngle;
-				histEntryAz[rangeNum + 1] = AzAngle;
 
 				if (El==1)
 				{
@@ -823,7 +801,7 @@ early4:
 						ElAngle2=asin(posEl2 * dsinEl) * 180 / pi();   //Positive velocity (From the right)
 					}
 					
-					if (abs(ElAngle2 - ElAngle1) > requiredAngleSimilarity)
+					if (abs(ElAngle2 - ElAngle1) > requiredAngleSimilarityEl)
 					{
 						  print_line("Target ", it, " dropped due to mismatch in el for different antennas (", ElAngle1, " vs ", ElAngle2, ") at R=", R);
 						  goto skiptarget;
@@ -838,11 +816,6 @@ early4:
 				{
 					ElAngle = 0;
 				}
-				histEntryEl[rangeNum] = ElAngle;
-
-				// Splash the detection to neighboring ranges
-				histEntryEl[rangeNum - 1] = ElAngle;
-				histEntryEl[rangeNum + 1] = ElAngle;
 
 				print_line(Step, ", ", it + 1, ", ", R, ", ", Vmag, ", ", AzAngle, ", ", ElAngle, ",");
 
@@ -1064,92 +1037,6 @@ endofloop:
 
 			currentTime = currentTime + perFrame*(T+P)/1000; //T+P should be approx. 11 ms with current implementation
 			//print_line("Current tracker time is ", currentTime, " s");
-
-			for (histInd = 1; histInd < breathingHistSamples; histInd = histInd + 1)
-			{
-				set_matrix_row(histogramMatAz, histInd - 1, get_matrix_row(histogramMatAz, histInd));
-				set_matrix_row(histogramMatEl, histInd - 1, get_matrix_row(histogramMatEl, histInd));
-			}
-			set_matrix_row(histogramMatAz, breathingHistSamples - 1, histEntryAz);
-			set_matrix_row(histogramMatEl, breathingHistSamples - 1, histEntryEl);
-
-			if (TagUs > 0) // There was a new entry
-			{
-				histogramMatAzT = transpose(histogramMatAz);
-				histogramMatElT = transpose(histogramMatEl);
-				for(it=0; it<TagUs; it=it+1)
-				{
-					//print_line("");
-					//print_line("Target number ", it);
-					//print_line("azimuth hist:");
-					rangeNum=scoreMaximums[it];
-					R=rangeNum*distperpoint - startDelay;
-					histAz = 0;
-					histEl = 0;
-					// Azimuth from the histogram
-					histEntry = get_matrix_row(histogramMatAzT, rangeNum);
-					validEntries = 0;
-					for (ih = 0; ih < breathingHistSamples; ih = ih + 1)
-					{
-						if (histEntry[ih] < -999) // Invalid entry
-						{
-							goto nexthistaz;
-						}
-						if (abs(histEntry[ih]) > azHistMaxAngle) // Outside of the estimation range
-						{
-							goto nexthistaz;
-						}
-
-						histIndex = floor((histEntry[ih] + azHistMaxAngle)/azHistStep + 0.5);
-						histAz[histIndex] = histAz[histIndex] + 1;
-						//print_line("Adding to the az histogram at ", histIndex);
-						validEntries = validEntries + 1;
-
-nexthistaz:
-					}
-					posAz = -1000;
-					posEl = -1000;
-					if (validEntries > breathingHistRequired)
-					{
-						val = max(histAz, posAz);
-					}
-
-					//print_line("elevation hist:");
-					// Elevation from the histogram
-					histEntry = get_matrix_row(histogramMatElT, rangeNum);
-					validEntries = 0;
-					for (ih = 0; ih < breathingHistSamples; ih = ih + 1)
-					{
-						if (histEntry[ih] < -999) // Invalid entry
-						{
-							goto nexthistel;
-						}
-						if (abs(histEntry[ih]) > elHistMaxAngle) // Outside of the estimation range
-						{
-							goto nexthistel;
-						}
-
-						histIndex = floor((histEntry[ih] + elHistMaxAngle)/elHistStep + 0.5);
-						histEl[histIndex] = histEl[histIndex] + 1;
-						//print_line("Adding to the el histogram at ", histIndex);
-						validEntries = validEntries + 1;
-
-nexthistel:
-					}
-
-					if (validEntries > breathingHistRequired)
-					{
-						val = max(histEl, posEl);
-					}
-
-					if ((posAz > -1000) and (posEl > -1000))
-					{
-						print_line("Step=", Step, ", Immobile detected at R=", R, ", V=", 0, ", az=", posAz*azHistStep - azHistMaxAngle, ", el=",  posEl*elHistStep - elHistMaxAngle);
-					}
-				}
-			}
-
-			//pause();
 		}
 
 		//pause();
