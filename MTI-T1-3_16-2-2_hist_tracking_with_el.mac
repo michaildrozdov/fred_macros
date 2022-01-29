@@ -84,7 +84,7 @@ if (TX_pos[1] < 0)
 }
 
 //which tx in the switching order maps to which azimuth location (the 3rd tx is cosidered the last one in azimuth)
-TxMapping = signal(1, TxNum, false);
+TxMapping = signal(1, 4, false);
 TxMapping = -1; //We should clearly fail
 
 TxMapping[Tx_pos[0]] = 1; //TX1 maps to the second azimuth location
@@ -575,16 +575,19 @@ early3:
 
 					for (chNum = 0; chNum < Nch; chNum = chNum + 1)
 					{
-						cc1=get_matrix_row(difMat, TxMapping[Tx_i]*Nch + chNum);
+						if (TxMapping[Tx_i] > -1)
+						{
+							  cc1=get_matrix_row(difMat, TxMapping[Tx_i]*Nch + chNum);
 
-						SigZP_1=0;
-						Insert(cc1*W,0,N-1,SigZP_1,0);
+							  SigZP_1=0;
+							  Insert(cc1*W,0,N-1,SigZP_1,0);
 
-						spectr_1=fft(sigZP_1)/T;  //Range FFT
-						set_window(spectr_1,pointsToView*dT,pointsToView);
+							  spectr_1=fft(sigZP_1)/T;  //Range FFT
+							  set_window(spectr_1,pointsToView*dT,pointsToView);
 
-						//Should not corrupt TX_pos[0] rows
-						set_matrix_row(phaseMat, TxMapping[Tx_i]*Nch + chNum, phase(spectr_1));
+							  //Should not corrupt TX_pos[0] rows
+							  set_matrix_row(phaseMat, TxMapping[Tx_i]*Nch + chNum, phase(spectr_1));
+						}
 					}
 				}
 			}
